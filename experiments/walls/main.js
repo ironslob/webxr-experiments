@@ -1,19 +1,18 @@
 import * as THREE from "three";
-import { readOptions } from "../../shared/options.js";
-
-const options = readOptions({ surfaces: "walls", opacity: 0.45, scan: true });
-const wallsOnly = options.surfaces !== "all";
-const opacity = Math.min(0.8, Math.max(0.15, options.opacity));
 
 const palette = [0x5b8cff, 0xff5d73, 0xd6ff4a, 0xffb45a, 0xc084fc, 0x3dffe8, 0xff7ad9, 0x7f9a78];
+const SECONDARY_BUTTON = 5;
 
-const preview = document.querySelector("#preview");
+const setup = document.querySelector("#setup");
+const form = document.querySelector("#settings");
+const note = document.querySelector("#note");
 const enter = document.querySelector("#enter");
 const exit = document.querySelector("#exit");
 const overlay = document.querySelector("#overlay");
 const status = document.querySelector("#status");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.domElement.classList.add("xr-view");
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x000000, 0);
@@ -26,10 +25,14 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 30);
 
 const planes = new Map();
+let wallsOnly = true;
+let opacity = 0.45;
+let scan = true;
 let nextColor = 0;
 let startedAt = 0;
 let scanRequested = false;
 let scanning = false;
+let ending = false;
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -38,9 +41,17 @@ window.addEventListener("resize", () => {
 });
 
 enter.addEventListener("click", () => {
-  start().catch((error) => {
-    preview.textContent = error?.message || "Could not start AR.";
-  });
+  applyForm();
+  navigator.xr
+    .requestSession("immersive-ar", {
+      requiredFeatures: ["plane-detection", "local-floor"],
+      optionalFeatures: ["dom-overlay"],
+      domOverlay: { root: overlay },
+    })
+    .then((session) => renderer.xr.setSession(session))
+    .catch((error) => {
+      note.textContent = error?.message || "Could not start AR.";
+    });
 });
 
 exit.addEventListener("click", () => {
@@ -48,44 +59,58 @@ exit.addEventListener("click", () => {
 });
 
 renderer.xr.addEventListener("sessionstart", () => {
+  setup.hidden = true;
   overlay.style.display = "block";
   startedAt = performance.now();
   scanRequested = false;
   scanning = false;
+  ending = false;
   status.textContent = "Looking for walls…";
 });
 
 renderer.xr.addEventListener("sessionend", () => {
   overlay.style.display = "none";
+  setup.hidden = false;
   clearPlanes();
-  preview.textContent = "Session ended. Enter AR to look again.";
+  note.textContent = "Session ended. Enter AR to look again.";
 });
 
 prepare();
 renderer.setAnimationLoop((_time, frame) => {
-  if (frame) syncPlanes(frame);
+  if (frame) {
+    exitFromControllers(frame);
+    syncPlanes(frame);
+  }
   renderer.render(scene, camera);
 });
+
+function applyForm() {
+  const data = new FormData(form);
+  wallsOnly = data.get("surfaces") !== "all";
+  opacity = Math.min(0.8, Math.max(0.15, Number(data.get("opacity")) || 0.45));
+  scan = form.querySelector("#scan").checked;
+}
 
 async function prepare() {
   const supported = navigator.xr && (await navigator.xr.isSessionSupported("immersive-ar").catch(() => false));
   if (!supported) {
-    preview.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+    note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
     enter.textContent = "AR not available";
     return;
   }
 
-  preview.textContent = "Enter AR. The headset camera stays visible, and each wall is tinted.";
+  note.textContent = "The controls above are the ones inside the headset.";
   enter.disabled = false;
 }
 
-async function start() {
-  const session = await navigator.xr.requestSession("immersive-ar", {
-    requiredFeatures: ["plane-detection", "local-floor"],
-    optionalFeatures: ["dom-overlay"],
-    domOverlay: { root: overlay },
-  });
-  await renderer.xr.setSession(session);
+function exitFromControllers(frame) {
+  if (ending) return;
+  for (const source of frame.session.inputSources) {
+    if (!source.gamepad?.buttons[SECONDARY_BUTTON]?.pressed) continue;
+    ending = true;
+    frame.session.end();
+    return;
+  }
 }
 
 function syncPlanes(frame) {
@@ -140,7 +165,7 @@ function planeStatus(shown, total) {
 }
 
 function maybeScan(frame, total) {
-  if (!options.scan || scanRequested || total > 0) return;
+  if (!scan || scanRequested || total > 0) return;
   if (performance.now() - startedAt < 4000) return;
 
   const session = frame.session;

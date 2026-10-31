@@ -5,18 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Walls — WebXR Experiments</title>
     <link rel="stylesheet" href="../../styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body>
-    <main class="site">
+    <main class="site" id="setup">
       <p class="kicker"><a href="../../">Experiments</a> · 01</p>
       <h1>Walls</h1>
       <p class="lede">
-        Quest 3 passthrough. The session stands you on the floor, asks for the
-        room scan, and paints each wall with its own translucent color. Launch
-        on the headset, then press Enter AR. A laptop can open this page, but
-        it cannot start the session.
+        Quest 3 passthrough. Enter AR stands you on the floor, reads the room
+        scan, and paints each wall with its own translucent color. A laptop can
+        open this page, but it cannot start the session.
       </p>
-      <form data-launch action="play.html">
+      <form id="settings">
         <div class="option-list">
           <div class="option">
             <label class="option-copy" for="surfaces">
@@ -47,9 +54,30 @@
             <input id="scan" name="scan" type="checkbox" checked />
           </div>
         </div>
-        <button class="launch" type="submit">Launch</button>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button" disabled>Enter AR</button>
+        <p class="note" id="note">Checking this browser for immersive AR…</p>
       </form>
     </main>
-    <script src="../../shared/launch.js"></script>
+    <div id="overlay">
+      <p id="status">Looking for walls…</p>
+      <p id="hint">B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script type="module" src="./main.js"></script>
   </body>
 </html>

@@ -4,7 +4,7 @@ A Quest 3 passthrough scene, published the same way as [mastermind](https://gith
 
 [Walls](experiments/walls/) asks for an `immersive-ar` session and the room’s detected planes. Each vertical plane, usually a wall from Space Setup, is drawn as its own translucent color.
 
-Open that page in the Quest browser. The headset needs a room scan. If it has none, the session can start one.
+Open that page in the Quest browser. The control list is on the page, above Enter AR. Inside the headset, B or Y leaves the session. The Meta button on the right controller opens the system menu. The headset needs a room scan. If it has none, the session can start one.
 
 WebXR needs a secure context. GitHub Pages is HTTPS. On your machine, `localhost` counts too, but passthrough only runs on the headset.
 
@@ -14,6 +14,6 @@ python3 -m http.server 8765
 
 The scene uses [three.js](https://threejs.org/) from a CDN, so there is no build step. Pages deploys the files on `main` as they are.
 
-Each experiment is a folder. `index.html` is the landing page: a short description, the settings for that scene, and a Launch button. Launch opens `play.html` with those settings in the query string. The root `index.html` only lists the experiments.
+Each experiment is a folder. Its `index.html` describes the scene, shows the settings, lists the controls, and starts the session from that button press. The root `index.html` only lists the experiments.
 
 Keep asset URLs relative so the site works both at the domain root locally and under `/webxr-experiments/` on GitHub Pages.
