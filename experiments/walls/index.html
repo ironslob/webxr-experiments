@@ -69,8 +69,8 @@
             <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
           </li>
         </ul>
-        <button id="enter" class="launch" type="button" disabled>Enter AR</button>
-        <p class="note" id="note">Checking this browser for immersive AR…</p>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">The controls above are the ones inside the headset.</p>
       </form>
     </main>
     <div id="overlay">
@@ -78,6 +78,26 @@
       <p id="hint">B or Y exits</p>
       <button id="exit" class="launch enter" type="button">Exit</button>
     </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
     <script type="module" src="./main.js"></script>
   </body>
 </html>

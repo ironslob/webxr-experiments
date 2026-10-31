@@ -75,7 +75,6 @@ renderer.xr.addEventListener("sessionend", () => {
   note.textContent = "Session ended. Enter AR to look again.";
 });
 
-prepare();
 renderer.setAnimationLoop((_time, frame) => {
   if (frame) {
     exitFromControllers(frame);
@@ -89,18 +88,6 @@ function applyForm() {
   wallsOnly = data.get("surfaces") !== "all";
   opacity = Math.min(0.8, Math.max(0.15, Number(data.get("opacity")) || 0.45));
   scan = form.querySelector("#scan").checked;
-}
-
-async function prepare() {
-  const supported = navigator.xr && (await navigator.xr.isSessionSupported("immersive-ar").catch(() => false));
-  if (!supported) {
-    note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
-    enter.textContent = "AR not available";
-    return;
-  }
-
-  note.textContent = "The controls above are the ones inside the headset.";
-  enter.disabled = false;
 }
 
 function exitFromControllers(frame) {
