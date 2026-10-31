@@ -151,11 +151,10 @@ renderer.setAnimationLoop((_time, frame) => {
 });
 
 function applyForm() {
-  const data = new FormData(form);
-  ballCount = Math.min(60, Math.max(1, Number(data.get("count")) || 10));
-  bounceMode = String(data.get("bounce") || "walls-floor");
-  gravityOn = data.get("gravity") !== "off";
-  interactMode = String(data.get("interact") || "poke");
+  ballCount = Math.min(60, Math.max(1, Number(form.querySelector("#count").value) || 10));
+  bounceMode = form.querySelector("#bounce").value || "walls-floor";
+  gravityOn = form.querySelector("#gravity").value !== "off";
+  interactMode = form.querySelector("#interact").value || "poke";
   showPlanes = form.querySelector("#planes").checked;
   scan = form.querySelector("#scan").checked;
 }
@@ -454,8 +453,9 @@ function syncPlanes(frame) {
   }
 
   if (!scanning) {
-    if (spawned) status.textContent = `${balls.length} balls · ${bounceCount} surfaces`;
-    else status.textContent = planeStatus(bounceCount, detected.size);
+    const gravityLabel = gravityOn ? "gravity on" : "gravity off";
+    if (spawned) status.textContent = `${balls.length} balls · ${bounceCount} surfaces · ${gravityLabel}`;
+    else status.textContent = `${planeStatus(bounceCount, detected.size)} · ${gravityLabel}`;
   }
   maybeScan(frame, detected.size);
 }
