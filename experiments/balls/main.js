@@ -5,9 +5,10 @@ const SECONDARY_BUTTON = 5;
 const TRIGGER_BUTTON = 0;
 const BALL_RADIUS = 0.08;
 const CONTROLLER_RADIUS = 0.04;
-const GRAVITY = new THREE.Vector3(0, -2.4, 0);
+const GRAVITY_FORCE = new THREE.Vector3(0, -2.4, 0);
 const RESTITUTION = 0.78;
 const FRICTION = 0.98;
+const ZERO_G_FRICTION = 0.999;
 const GRAB_RANGE = 0.16;
 const MAX_SPEED = 8;
 
@@ -48,6 +49,7 @@ const tmp = {
 
 let ballCount = 10;
 let bounceMode = "walls-floor";
+let gravityOn = true;
 let interactMode = "poke";
 let showPlanes = true;
 let scan = true;
@@ -152,6 +154,7 @@ function applyForm() {
   const data = new FormData(form);
   ballCount = Math.min(60, Math.max(1, Number(data.get("count")) || 10));
   bounceMode = String(data.get("bounce") || "walls-floor");
+  gravityOn = data.get("gravity") !== "off";
   interactMode = String(data.get("interact") || "poke");
   showPlanes = form.querySelector("#planes").checked;
   scan = form.querySelector("#scan").checked;
@@ -251,11 +254,13 @@ function spawnBalls() {
     const position = origin.clone().add(
       new THREE.Vector3((Math.random() - 0.5) * 0.9, Math.random() * 0.7, (Math.random() - 0.5) * 0.9),
     );
+    const speed = gravityOn ? 1.4 : 1.8;
     const velocity = new THREE.Vector3(
-      (Math.random() - 0.5) * 1.4,
-      Math.random() * 0.6,
-      (Math.random() - 0.5) * 1.4,
+      (Math.random() - 0.5) * speed,
+      gravityOn ? Math.random() * 0.6 : (Math.random() - 0.5) * speed,
+      (Math.random() - 0.5) * speed,
     );
+    if (!gravityOn && velocity.lengthSq() < 0.25) velocity.setLength(0.8);
 
     mesh.position.copy(position);
     scene.add(mesh);
@@ -268,11 +273,13 @@ function spawnBalls() {
 function stepPhysics(dt) {
   if (!balls.length) return;
 
+  const drag = gravityOn ? FRICTION : ZERO_G_FRICTION;
+
   for (const ball of balls) {
     if (ball.heldBy) continue;
 
-    ball.velocity.addScaledVector(GRAVITY, dt);
-    ball.velocity.multiplyScalar(Math.pow(FRICTION, dt * 60));
+    if (gravityOn) ball.velocity.addScaledVector(GRAVITY_FORCE, dt);
+    ball.velocity.multiplyScalar(Math.pow(drag, dt * 60));
     if (ball.velocity.lengthSq() > MAX_SPEED * MAX_SPEED) {
       ball.velocity.setLength(MAX_SPEED);
     }
@@ -315,7 +322,8 @@ function collidePlanes(ball) {
 
     const impact = ball.velocity.dot(tmp.normal);
     if (impact < 0) {
-      ball.velocity.addScaledVector(tmp.normal, -(1 + RESTITUTION) * impact);
+      const bounce = gravityOn ? RESTITUTION : 1;
+      ball.velocity.addScaledVector(tmp.normal, -(1 + bounce) * impact);
     }
   }
 }
@@ -349,7 +357,8 @@ function collideBalls() {
       const impact = tmp.velocity.dot(tmp.normal);
       if (impact >= 0) continue;
 
-      const impulse = -(1 + RESTITUTION) * impact * 0.5;
+      const bounce = gravityOn ? RESTITUTION : 1;
+      const impulse = -(1 + bounce) * impact * 0.5;
       if (!a.heldBy) a.velocity.addScaledVector(tmp.normal, -impulse);
       if (!b.heldBy) b.velocity.addScaledVector(tmp.normal, impulse);
     }

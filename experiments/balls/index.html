@@ -20,8 +20,8 @@
       <h1>Balls</h1>
       <p class="lede">
         Quest 3 passthrough. Enter AR drops colored balls into the room scan.
-        They bounce off the surfaces you pick. Controllers can poke them, or
-        grab and throw them, if you turn that on.
+        They bounce off the surfaces you pick. Turn gravity off to keep them
+        floating. Controllers can poke them, or grab and throw them.
       </p>
       <form id="settings">
         <div class="option-list">
@@ -46,6 +46,16 @@
               <option value="walls">Walls only</option>
               <option value="walls-floor" selected>Walls and floor</option>
               <option value="all">All scanned planes</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="gravity">
+              Gravity
+              <small>Off keeps them floating and bouncing forever.</small>
+            </label>
+            <select id="gravity" name="gravity">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
             </select>
           </div>
           <div class="option">
