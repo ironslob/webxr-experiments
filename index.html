@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#121612" />
+    <title>WebXR Experiments</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="site">
+      <p class="kicker">ironslob.github.io/webxr-experiments</p>
+      <h1>WebXR experiments</h1>
+      <p class="lede">
+        Small scenes for the browser’s WebXR API. Open one on a desktop to look around,
+        or in a headset browser when the card asks for one.
+      </p>
+      <div class="grid">
+        <a class="card" href="experiments/sculpture/">
+          <span class="num">01</span>
+          <h2>Sculpture</h2>
+          <p>A kinetic piece on a pedestal. Drag to orbit.</p>
+          <div class="tags"><span class="tag">Browser</span></div>
+        </a>
+        <a class="card" href="experiments/room/">
+          <span class="num">02</span>
+          <h2>Room</h2>
+          <p>A ring of columns and a floating stone. Enter VR if you have a headset.</p>
+          <div class="tags"><span class="tag vr">Headset optional</span></div>
+        </a>
+        <a class="card" href="experiments/rays/">
+          <span class="num">03</span>
+          <h2>Rays</h2>
+          <p>Controller pointers. A block lights up where the ray lands.</p>
+          <div class="tags"><span class="tag vr">Headset</span></div>
+        </a>
+        <a class="card" href="experiments/anchor/">
+          <span class="num">04</span>
+          <h2>Anchor</h2>
+          <p>Phone AR. Point at a real surface and tap to leave a peg.</p>
+          <div class="tags"><span class="tag ar">Phone AR</span></div>
+        </a>
+      </div>
+      <p class="status" id="support">Checking WebXR support…</p>
+      <p class="note">
+        Source on <a href="https://github.com/ironslob/webxr-experiments">GitHub</a>.
+        Locally: <code>python3 -m http.server 8765</code>
+      </p>
+    </main>
+    <script>
+      const support = document.querySelector("#support");
+
+      async function report() {
+        if (!navigator.xr) {
+          support.textContent =
+            "This browser has no WebXR. Sculpture and the desktop views still run.";
+          return;
+        }
+
+        const vr = await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
+        const ar = await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const bits = [
+          vr ? "immersive VR is available" : "immersive VR is not available",
+          ar ? "immersive AR is available" : "immersive AR is not available",
+        ];
+        support.textContent = `WebXR: ${bits.join("; ")}.`;
+      }
+
+      report().catch(() => {
+        support.textContent = "Could not query WebXR support in this browser.";
+      });
+    </script>
+  </body>
+</html>
