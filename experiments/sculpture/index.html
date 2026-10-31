@@ -5,23 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sculpture — WebXR Experiments</title>
     <link rel="stylesheet" href="../../styles.css" />
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
-        }
-      }
-    </script>
   </head>
-  <body class="stage">
-    <header class="hud">
-      <a class="back" href="../../">Experiments</a>
-      <div>
-        <h1>Sculpture</h1>
-        <p>Drag to orbit. Scroll to zoom. No headset needed.</p>
-      </div>
-    </header>
-    <script type="module" src="./main.js"></script>
+  <body>
+    <main class="site">
+      <p class="kicker"><a href="../../">Experiments</a> · 01</p>
+      <h1>Sculpture</h1>
+      <p class="lede">
+        A kinetic piece on a pedestal. It runs in any browser. Drag to orbit after launch.
+        No headset needed.
+      </p>
+      <form data-launch action="play.html">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="speed">
+              Spin speed
+              <small>How fast the rings turn.</small>
+            </label>
+            <select id="speed" name="speed">
+              <option value="0.45">Slow</option>
+              <option value="1" selected>Normal</option>
+              <option value="1.8">Fast</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="spin">
+              Turn the rings
+              <small>Leave this off to inspect a still piece.</small>
+            </label>
+            <input id="spin" name="spin" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="grid">
+              Floor grid
+              <small>A reference grid on the ground.</small>
+            </label>
+            <input id="grid" name="grid" type="checkbox" checked />
+          </div>
+        </div>
+        <button class="launch" type="submit">Launch</button>
+      </form>
+    </main>
+    <script src="../../shared/launch.js"></script>
   </body>
 </html>

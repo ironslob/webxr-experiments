@@ -1,7 +1,9 @@
 import { VRButton } from "three/addons/webxr/VRButton.js";
+import { readOptions } from "../../shared/options.js";
 import { addGround, addLights, createStage, startLoop } from "../../shared/stage.js";
 
-const stage = createStage({ xr: true });
+const options = readOptions({ vr: true, motion: true, grid: true });
+const stage = createStage({ xr: options.vr });
 const { THREE, renderer, scene, camera, controls } = stage;
 
 camera.position.set(1.15, 1.55, 4.6);
@@ -9,7 +11,7 @@ controls.target.set(0, 1.15, 0);
 controls.update();
 
 addLights(scene);
-addGround(THREE, scene);
+addGround(THREE, scene, { grid: options.grid });
 
 const columnMaterial = new THREE.MeshStandardMaterial({ color: 0xe7e1d4, roughness: 0.62 });
 
@@ -37,9 +39,10 @@ const glow = new THREE.PointLight(0xd6ff4a, 6, 6);
 glow.position.y = 1.3;
 scene.add(glow);
 
-document.body.appendChild(VRButton.createButton(renderer));
+if (options.vr) document.body.appendChild(VRButton.createButton(renderer));
 
 startLoop(stage, (time) => {
+  if (!options.motion) return;
   gem.rotation.y = time * 0.0006;
   gem.rotation.x = Math.sin(time * 0.0004) * 0.25;
 });

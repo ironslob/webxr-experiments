@@ -1,6 +1,8 @@
 import { ARButton } from "three/addons/webxr/ARButton.js";
+import { readOptions } from "../../shared/options.js";
 import { addLights, createStage, startLoop } from "../../shared/stage.js";
 
+const options = readOptions({ size: 1, limit: 24 });
 const stage = createStage({ xr: true, alpha: true });
 const { THREE, renderer, scene } = stage;
 const readout = document.querySelector("#readout");
@@ -72,7 +74,7 @@ startLoop(stage, (_time, frame) => {
 });
 
 function placePeg() {
-  if (!reticle.visible || placed >= 30) return;
+  if (!reticle.visible || placed >= options.limit) return;
 
   const mesh = new THREE.Mesh(
     pegGeometry,
@@ -82,7 +84,7 @@ function placePeg() {
     }),
   );
   reticle.matrix.decompose(mesh.position, mesh.quaternion, mesh.scale);
-  mesh.scale.set(1, 1, 1);
+  mesh.scale.setScalar(options.size);
   scene.add(mesh);
   placed += 1;
   readout.textContent = placed === 1 ? "1 peg placed." : `${placed} pegs placed.`;

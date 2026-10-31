@@ -5,23 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rays — WebXR Experiments</title>
     <link rel="stylesheet" href="../../styles.css" />
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
-        }
-      }
-    </script>
   </head>
-  <body class="stage">
-    <header class="hud">
-      <a class="back" href="../../">Experiments</a>
-      <div>
-        <h1>Rays</h1>
-        <p id="readout">Enter VR and point. The trigger turns a ray hot.</p>
-      </div>
-    </header>
-    <script type="module" src="./main.js"></script>
+  <body>
+    <main class="site">
+      <p class="kicker"><a href="../../">Experiments</a> · 03</p>
+      <h1>Rays</h1>
+      <p class="lede">
+        Controller pointers. A block lights up where a ray lands. The blocks are visible
+        on a desktop. The rays themselves need a headset after launch.
+      </p>
+      <form data-launch action="play.html">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="length">
+              Ray length
+              <small>How far a pointer can reach, in meters.</small>
+            </label>
+            <select id="length" name="length">
+              <option value="2">2 m</option>
+              <option value="4" selected>4 m</option>
+              <option value="8">8 m</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="models">
+              Controller models
+              <small>Draw the headset’s controller shape on each hand.</small>
+            </label>
+            <input id="models" name="models" type="checkbox" checked />
+          </div>
+        </div>
+        <button class="launch" type="submit">Launch</button>
+      </form>
+    </main>
+    <script src="../../shared/launch.js"></script>
   </body>
 </html>

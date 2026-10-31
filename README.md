@@ -19,4 +19,6 @@ Open [http://localhost:8765](http://localhost:8765).
 
 Scenes use [three.js](https://threejs.org/) from a CDN, so there is no build step. Pages deploys the files on `main` as they are.
 
-To add an experiment, make a folder under `experiments/` with an `index.html` and link it from the home page. Keep asset URLs relative so the site works both at the domain root locally and under `/webxr-experiments/` on GitHub Pages.
+Each experiment is a folder. `index.html` is the landing page: a short description, the settings for that scene, and a Launch button. Launch opens `play.html` with those settings in the query string. The root `index.html` only lists the experiments.
+
+Keep asset URLs relative so the site works both at the domain root locally and under `/webxr-experiments/` on GitHub Pages.

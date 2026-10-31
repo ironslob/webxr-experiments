@@ -1,0 +1,21 @@
+---
+description: Layout for the experiment index, landing pages, and launch settings
+alwaysApply: true
+---
+
+# Experiment layout
+
+Static site. GitHub Pages serves `main` at `https://ironslob.github.io/webxr-experiments/`. Use relative URLs so the same files work from a local server at the repo root.
+
+- `index.html` lists every experiment and links to its folder.
+- Each experiment is its own folder: `experiments/<name>/`.
+- `index.html` in that folder is the landing page only. Describe the scene, show the settings that change how it runs, and include a Launch button. Do not start WebGL here.
+- Launch opens `play.html` in the same folder and passes the chosen settings as query parameters. `main.js` reads those parameters and applies them. Opening `play.html` with no query uses the same defaults as the form.
+- Add a new experiment by creating the folder, landing page, and play page, then adding a card on the root index.
+
+```
+experiments/room/
+  index.html   landing page, settings, Launch
+  play.html    the session
+  main.js      reads ?grid=1&motion=1&vr=1
+```

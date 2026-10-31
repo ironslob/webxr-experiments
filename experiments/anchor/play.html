@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Anchor — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body class="stage">
+    <header class="hud">
+      <a class="back" href="./">Setup</a>
+      <div>
+        <h1>Anchor</h1>
+        <p id="readout">Start AR, aim at a floor or table, then tap to place a peg.</p>
+      </div>
+    </header>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

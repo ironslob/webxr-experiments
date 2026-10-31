@@ -48,7 +48,7 @@ export function addLights(scene) {
   scene.add(fill);
 }
 
-export function addGround(THREE, scene) {
+export function addGround(THREE, scene, { grid = true } = {}) {
   const floor = new THREE.Mesh(
     new THREE.CircleGeometry(5, 72),
     new THREE.MeshStandardMaterial({ color: 0x1c241c, roughness: 1, metalness: 0 }),
@@ -56,9 +56,12 @@ export function addGround(THREE, scene) {
   floor.rotation.x = -Math.PI / 2;
   scene.add(floor);
 
-  const grid = new THREE.GridHelper(8, 16, 0xd6ff4a, 0x2c382c);
-  grid.position.y = 0.002;
-  scene.add(grid);
+  if (grid) {
+    const helper = new THREE.GridHelper(8, 16, 0xd6ff4a, 0x2c382c);
+    helper.position.y = 0.002;
+    scene.add(helper);
+  }
+
   return floor;
 }
 

@@ -1,10 +1,12 @@
+import { readOptions } from "../../shared/options.js";
 import { addGround, addLights, createStage, startLoop } from "../../shared/stage.js";
 
+const options = readOptions({ speed: 1, spin: true, grid: true });
 const stage = createStage();
 const { THREE, scene } = stage;
 
 addLights(scene);
-addGround(THREE, scene);
+addGround(THREE, scene, { grid: options.grid });
 
 const palette = [0xd6ff4a, 0xf2efe4, 0xe07a3d, 0x7f9a78];
 const geometries = [
@@ -55,7 +57,8 @@ pole.position.y = 1.1;
 scene.add(pole);
 
 startLoop(stage, (time) => {
-  const seconds = time * 0.001;
+  if (!options.spin) return;
+  const seconds = time * 0.001 * options.speed;
   rings.forEach((ring, index) => {
     ring.rotation.y = seconds * (index % 2 === 0 ? 0.35 : -0.22);
   });

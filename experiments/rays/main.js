@@ -1,7 +1,9 @@
 import { VRButton } from "three/addons/webxr/VRButton.js";
 import { XRControllerModelFactory } from "three/addons/webxr/XRControllerModelFactory.js";
+import { readOptions } from "../../shared/options.js";
 import { addGround, addLights, createStage, startLoop } from "../../shared/stage.js";
 
+const options = readOptions({ length: 4, models: true });
 const stage = createStage({ xr: true });
 const { THREE, renderer, scene } = stage;
 const readout = document.querySelector("#readout");
@@ -27,8 +29,9 @@ for (const spot of spots) {
   targets.push(mesh);
 }
 
-const factory = new XRControllerModelFactory();
+const factory = options.models ? new XRControllerModelFactory() : null;
 const raycaster = new THREE.Raycaster();
+raycaster.far = options.length;
 const hands = [0, 1].map((index) => makeHand(index));
 
 document.body.appendChild(VRButton.createButton(renderer));
@@ -48,7 +51,7 @@ startLoop(stage, () => {
       hit.object.material.emissiveIntensity = 0.55;
       hand.line.scale.z = hit.distance;
     } else {
-      hand.line.scale.z = 4;
+      hand.line.scale.z = options.length;
     }
 
     if (gamepad) {
@@ -70,7 +73,7 @@ function makeHand(index) {
   ]);
   const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xd6ff4a }));
   line.visible = false;
-  line.scale.z = 4;
+  line.scale.z = options.length;
   controller.add(line);
 
   controller.addEventListener("connected", (event) => {
@@ -85,7 +88,7 @@ function makeHand(index) {
   scene.add(controller);
 
   const grip = renderer.xr.getControllerGrip(index);
-  grip.add(factory.createControllerModel(grip));
+  if (factory) grip.add(factory.createControllerModel(grip));
   scene.add(grip);
 
   return { controller, line, name: index === 0 ? "Left" : "Right" };

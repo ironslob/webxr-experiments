@@ -5,23 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Room — WebXR Experiments</title>
     <link rel="stylesheet" href="../../styles.css" />
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
-        }
-      }
-    </script>
   </head>
-  <body class="stage">
-    <header class="hud">
-      <a class="back" href="../../">Experiments</a>
-      <div>
-        <h1>Room</h1>
-        <p>Drag to look around. Enter VR to stand inside the ring.</p>
-      </div>
-    </header>
-    <script type="module" src="./main.js"></script>
+  <body>
+    <main class="site">
+      <p class="kicker"><a href="../../">Experiments</a> · 02</p>
+      <h1>Room</h1>
+      <p class="lede">
+        A ring of columns and a floating stone. The desktop view always works.
+        Enter VR appears after launch when a headset is connected and that option is on.
+      </p>
+      <form data-launch action="play.html">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="vr">
+              Enter VR
+              <small>Show the headset button. The preview still runs if you leave this off.</small>
+            </label>
+            <input id="vr" name="vr" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="motion">
+              Spin the stone
+              <small>The stone in the center keeps turning.</small>
+            </label>
+            <input id="motion" name="motion" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="grid">
+              Floor grid
+              <small>A reference grid on the ground.</small>
+            </label>
+            <input id="grid" name="grid" type="checkbox" checked />
+          </div>
+        </div>
+        <button class="launch" type="submit">Launch</button>
+      </form>
+    </main>
+    <script src="../../shared/launch.js"></script>
   </body>
 </html>
