@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Walls — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+  </head>
+  <body>
+    <main class="site">
+      <p class="kicker"><a href="../../">Experiments</a> · 01</p>
+      <h1>Walls</h1>
+      <p class="lede">
+        Quest 3 passthrough. The session stands you on the floor, asks for the
+        room scan, and paints each wall with its own translucent color. Launch
+        on the headset, then press Enter AR. A laptop can open this page, but
+        it cannot start the session.
+      </p>
+      <form data-launch action="play.html">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="surfaces">
+              Surfaces
+              <small>Walls are the vertical planes from the room scan.</small>
+            </label>
+            <select id="surfaces" name="surfaces">
+              <option value="walls" selected>Walls only</option>
+              <option value="all">All scanned planes</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="opacity">
+              Overlay
+              <small>How solid the color on each surface is.</small>
+            </label>
+            <select id="opacity" name="opacity">
+              <option value="0.28">Light</option>
+              <option value="0.45" selected>Medium</option>
+              <option value="0.65">Strong</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no scan yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+        </div>
+        <button class="launch" type="submit">Launch</button>
+      </form>
+    </main>
+    <script src="../../shared/launch.js"></script>
+  </body>
+</html>

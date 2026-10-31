@@ -12,33 +12,15 @@
       <p class="kicker">ironslob.github.io/webxr-experiments</p>
       <h1>WebXR experiments</h1>
       <p class="lede">
-        Small scenes for the browser’s WebXR API. Each card opens a setup page.
-        Choose the options there, then launch the scene.
+        One scene for a Quest 3. It opens a setup page, then an AR session that
+        paints each scanned wall.
       </p>
       <div class="grid">
-        <a class="card" href="experiments/sculpture/">
+        <a class="card" href="experiments/walls/">
           <span class="num">01</span>
-          <h2>Sculpture</h2>
-          <p>A kinetic piece on a pedestal. Drag to orbit.</p>
-          <div class="tags"><span class="tag">Browser</span></div>
-        </a>
-        <a class="card" href="experiments/room/">
-          <span class="num">02</span>
-          <h2>Room</h2>
-          <p>A ring of columns and a floating stone. Enter VR if you have a headset.</p>
-          <div class="tags"><span class="tag vr">Headset optional</span></div>
-        </a>
-        <a class="card" href="experiments/rays/">
-          <span class="num">03</span>
-          <h2>Rays</h2>
-          <p>Controller pointers. A block lights up where the ray lands.</p>
-          <div class="tags"><span class="tag vr">Headset</span></div>
-        </a>
-        <a class="card" href="experiments/anchor/">
-          <span class="num">04</span>
-          <h2>Anchor</h2>
-          <p>Phone AR. Point at a real surface and tap to leave a peg.</p>
-          <div class="tags"><span class="tag ar">Phone AR</span></div>
+          <h2>Walls</h2>
+          <p>Passthrough on a Quest 3. Each wall from the room scan gets its own translucent color.</p>
+          <div class="tags"><span class="tag ar">Quest 3 AR</span></div>
         </a>
       </div>
       <p class="status" id="support">Checking WebXR support…</p>
@@ -52,18 +34,14 @@
 
       async function report() {
         if (!navigator.xr) {
-          support.textContent =
-            "This browser has no WebXR. Sculpture and the desktop views still run.";
+          support.textContent = "This browser has no WebXR. Open the page in the Quest 3 browser.";
           return;
         }
 
-        const vr = await navigator.xr.isSessionSupported("immersive-vr").catch(() => false);
         const ar = await navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
-        const bits = [
-          vr ? "immersive VR is available" : "immersive VR is not available",
-          ar ? "immersive AR is available" : "immersive AR is not available",
-        ];
-        support.textContent = `WebXR: ${bits.join("; ")}.`;
+        support.textContent = ar
+          ? "Immersive AR is available in this browser."
+          : "Immersive AR is not available here. Open the page in the Quest 3 browser.";
       }
 
       report().catch(() => {

@@ -14,8 +14,8 @@ Static site. GitHub Pages serves `main` at `https://ironslob.github.io/webxr-exp
 - Add a new experiment by creating the folder, landing page, and play page, then adding a card on the root index.
 
 ```
-experiments/room/
+experiments/walls/
   index.html   landing page, settings, Launch
   play.html    the session
-  main.js      reads ?grid=1&motion=1&vr=1
+  main.js      reads ?surfaces=walls&opacity=0.45&scan=1
 ```

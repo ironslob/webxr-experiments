@@ -67,7 +67,7 @@ h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 
@@ -175,6 +175,40 @@ select {
   cursor: pointer;
 }
 
+.launch:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.enter {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 4;
+  transform: translateX(-50%);
+}
+
+#overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+#status {
+  pointer-events: auto;
+  width: max-content;
+  max-width: min(70vw, 28rem);
+  margin: 16px 18px 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(18, 22, 18, 0.72);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
 .hud {
   position: absolute;
   z-index: 2;
@@ -215,7 +249,6 @@ select {
 }
 
 @media (max-width: 680px) {
-  .grid { grid-template-columns: 1fr; }
   .hud { flex-direction: column; gap: 8px; }
   .hud h1, .hud p { text-align: left; }
 }
