@@ -239,6 +239,20 @@ select {
   transform: translateX(-50%);
 }
 
+.dev-badge {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 6;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(214, 255, 74, 0.92);
+  color: #15200a;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  pointer-events: none;
+}
+
 #overlay {
   display: none;
   position: fixed;

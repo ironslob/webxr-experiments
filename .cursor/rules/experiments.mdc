@@ -8,14 +8,15 @@ alwaysApply: true
 Static site. GitHub Pages serves `main` at `https://ironslob.github.io/webxr-experiments/`. Use relative URLs.
 
 - The root `index.html` lists every experiment and links to its folder.
-- Each experiment is `experiments/<name>/index.html`. That page is the setup and the session. Do not send the user to another page to start.
+- Each experiment is `experiments/<n>-<name>/index.html`, e.g. `1-walls`, `2-balls`. That page is the setup and the session. Do not send the user to another page to start.
 - Before the start button, show what the scene does, its settings, and every control. Name the button for the session (`Enter AR` or `Enter VR`).
 - Call `requestSession` in that button’s click handler, before any `await`. The headset only accepts the session from the button press.
 - Read the settings from the form in that same click.
 - On Quest, **B** (right controller) and **Y** (left) end the session. Say so in the control list. The **Meta** button opens the system menu and is not visible to the page; list it as the other way out.
+- Include `../../dev-reload.js` on every experiment page. Add a **Dev reload** checkbox (`#dev`) in settings. Checking it (or opening with `?dev`) polls the page and related files and reloads when they change.
 
 ```
-experiments/walls/
+experiments/1-walls/
   index.html   setup, control list, Enter AR
   main.js      session starts in the Enter AR click
 ```

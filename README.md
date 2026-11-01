@@ -2,7 +2,9 @@
 
 A Quest 3 passthrough scene, published the same way as [mastermind](https://github.com/ironslob/mastermind): GitHub Pages from the `main` branch, project site at [ironslob.github.io/webxr-experiments](https://ironslob.github.io/webxr-experiments/).
 
-[Walls](experiments/walls/) asks for an `immersive-ar` session and the room’s detected planes. Each vertical plane, usually a wall from Space Setup, is drawn as its own translucent color.
+[Walls](experiments/1-walls/) asks for an `immersive-ar` session and the room’s detected planes. Each vertical plane, usually a wall from Space Setup, is drawn as its own translucent color.
+
+[Balls](experiments/2-balls/) drops colored balls into the room scan. They bounce off the planes you pick; gravity and controller poke/grab are launch settings.
 
 Open that page in the Quest browser. The control list is on the page, above Enter AR. Inside the headset, B or Y leaves the session. The Meta button on the right controller opens the system menu. The headset needs a room scan. If it has none, the session can start one.
 
@@ -11,6 +13,8 @@ WebXR needs a secure context. GitHub Pages is HTTPS. On your machine, `localhost
 ```bash
 python3 -m http.server 8765
 ```
+
+Each experiment has a **Dev reload** checkbox in settings. Turn it on to poll the page and reload when files change. `?dev` in the URL does the same (`?dev=2000` sets the poll interval in milliseconds).
 
 The scene uses [three.js](https://threejs.org/) from a CDN, so there is no build step. Pages deploys the files on `main` as they are.
 

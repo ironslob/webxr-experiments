@@ -11,6 +11,12 @@ const FRICTION = 0.98;
 const ZERO_G_FRICTION = 0.999;
 const GRAB_RANGE = 0.16;
 const MAX_SPEED = 8;
+const BAT_HIT_BOOST = 1.35;
+const BAT_SIZES = {
+  small: { length: 0.48, radius: 0.028, power: 1.1 },
+  medium: { length: 0.72, radius: 0.036, power: 1.25 },
+  large: { length: 0.98, radius: 0.045, power: 1.45 },
+};
 
 const setup = document.querySelector("#setup");
 const form = document.querySelector("#settings");
@@ -45,12 +51,20 @@ const tmp = {
   delta: new THREE.Vector3(),
   inverse: new THREE.Matrix4(),
   quat: new THREE.Quaternion(),
+  a: new THREE.Vector3(),
+  b: new THREE.Vector3(),
+  prevA: new THREE.Vector3(),
+  prevB: new THREE.Vector3(),
+  closest: new THREE.Vector3(),
+  hitVel: new THREE.Vector3(),
 };
 
 let ballCount = 10;
 let bounceMode = "walls-floor";
 let gravityOn = true;
 let interactMode = "poke";
+let batSize = "off";
+let batConfig = null;
 let showPlanes = true;
 let scan = true;
 let nextColor = 0;
@@ -59,6 +73,7 @@ let scanRequested = false;
 let scanning = false;
 let ending = false;
 let spawned = false;
+let lastDt = 1 / 72;
 
 for (let hand = 0; hand < 2; hand += 1) {
   const grip = new THREE.Group();
@@ -69,15 +84,22 @@ for (let hand = 0; hand < 2; hand += 1) {
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.1 }),
   );
   tip.visible = false;
-  grip.add(tip);
+  const bat = createBatMesh();
+  bat.visible = false;
+  grip.add(tip, bat);
   scene.add(grip);
   controllers.push({
     grip,
     tip,
+    bat,
     handedness: hand === 0 ? "left" : "right",
     position: new THREE.Vector3(),
     previous: new THREE.Vector3(),
     velocity: new THREE.Vector3(),
+    batStart: new THREE.Vector3(),
+    batEnd: new THREE.Vector3(),
+    prevBatStart: new THREE.Vector3(),
+    prevBatEnd: new THREE.Vector3(),
     trigger: false,
     held: null,
   });
@@ -117,8 +139,8 @@ renderer.xr.addEventListener("sessionstart", () => {
   spawned = false;
   clock.start();
   status.textContent = "Looking for room…";
+  applyControllerVisuals();
   for (const controller of controllers) {
-    controller.tip.visible = interactMode !== "none";
     controller.held = null;
     controller.trigger = false;
   }
@@ -131,6 +153,7 @@ renderer.xr.addEventListener("sessionend", () => {
   clearBalls();
   for (const controller of controllers) {
     controller.tip.visible = false;
+    controller.bat.visible = false;
     controller.held = null;
   }
   note.textContent = "Session ended. Enter AR to look again.";
@@ -138,6 +161,7 @@ renderer.xr.addEventListener("sessionend", () => {
 
 renderer.setAnimationLoop((_time, frame) => {
   const dt = Math.min(0.05, clock.getDelta() || 0.016);
+  lastDt = Math.max(0.008, dt);
 
   if (frame) {
     exitFromControllers(frame);
@@ -155,8 +179,73 @@ function applyForm() {
   bounceMode = form.querySelector("#bounce").value || "walls-floor";
   gravityOn = form.querySelector("#gravity").value !== "off";
   interactMode = form.querySelector("#interact").value || "poke";
+  batSize = form.querySelector("#bat").value || "off";
+  batConfig = BAT_SIZES[batSize] || null;
   showPlanes = form.querySelector("#planes").checked;
   scan = form.querySelector("#scan").checked;
+  if (batConfig) scaleBats(batConfig);
+}
+
+function applyControllerVisuals() {
+  const showBat = Boolean(batConfig);
+  const showTip = !showBat && interactMode !== "none";
+  for (const controller of controllers) {
+    controller.bat.visible = showBat;
+    controller.tip.visible = showTip;
+  }
+}
+
+function createBatMesh() {
+  const group = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({
+    color: 0xc48a3a,
+    roughness: 0.55,
+    metalness: 0.05,
+  });
+  const gripMat = new THREE.MeshStandardMaterial({
+    color: 0x2a2a2a,
+    roughness: 0.85,
+    metalness: 0.05,
+  });
+
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.014, 1, 12), gripMat);
+  handle.name = "handle";
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.032, 1, 16), wood);
+  barrel.name = "barrel";
+  const tipKnob = new THREE.Mesh(new THREE.SphereGeometry(0.032, 12, 10), wood);
+  tipKnob.name = "knob";
+
+  // Controllers point along -Z; bat extends forward from the grip.
+  handle.rotation.x = Math.PI / 2;
+  barrel.rotation.x = Math.PI / 2;
+  group.add(handle, barrel, tipKnob);
+  return group;
+}
+
+function scaleBats(config) {
+  const handleLen = config.length * 0.28;
+  const barrelLen = config.length * 0.72;
+  const handleRadius = config.radius * 0.45;
+  const barrelTip = config.radius;
+  const barrelBase = config.radius * 0.55;
+
+  for (const controller of controllers) {
+    const handle = controller.bat.getObjectByName("handle");
+    const barrel = controller.bat.getObjectByName("barrel");
+    const knob = controller.bat.getObjectByName("knob");
+
+    handle.geometry.dispose();
+    handle.geometry = new THREE.CylinderGeometry(handleRadius * 0.9, handleRadius, handleLen, 12);
+    handle.position.set(0, 0, -handleLen * 0.5);
+
+    barrel.geometry.dispose();
+    barrel.geometry = new THREE.CylinderGeometry(barrelBase, barrelTip, barrelLen, 16);
+    barrel.position.set(0, 0, -(handleLen + barrelLen * 0.5));
+
+    knob.geometry.dispose();
+    knob.geometry = new THREE.SphereGeometry(barrelTip, 12, 10);
+    knob.position.set(0, 0, -config.length);
+  }
 }
 
 function exitFromControllers(frame) {
@@ -178,11 +267,15 @@ function updateControllers(frame, dt) {
     const space = source?.gripSpace || source?.targetRaySpace;
     const pose = space ? frame.getPose(space, referenceSpace) : null;
 
+    controller.prevBatStart.copy(controller.batStart);
+    controller.prevBatEnd.copy(controller.batEnd);
+
     if (pose) {
       controller.grip.matrix.fromArray(pose.transform.matrix);
       controller.grip.updateMatrixWorld(true);
       controller.grip.matrix.decompose(controller.position, tmp.quat, tmp.local);
       controller.grip.visible = true;
+      updateBatEndpoints(controller);
     } else {
       controller.grip.visible = false;
     }
@@ -289,11 +382,10 @@ function stepPhysics(dt) {
 
   collideBalls();
 
-  if (interactMode !== "none") {
-    for (const controller of controllers) {
-      if (!controller.grip.visible || controller.held) continue;
-      collideController(controller);
-    }
+  for (const controller of controllers) {
+    if (!controller.grip.visible || controller.held) continue;
+    if (batConfig) collideBat(controller);
+    else if (interactMode !== "none") collideController(controller);
   }
 
   for (const ball of balls) {
@@ -386,6 +478,60 @@ function collideController(controller) {
       }
     }
   }
+}
+
+function updateBatEndpoints(controller) {
+  if (!batConfig) return;
+  tmp.a.set(0, 0, -0.04);
+  tmp.b.set(0, 0, -batConfig.length);
+  tmp.a.applyMatrix4(controller.grip.matrixWorld);
+  tmp.b.applyMatrix4(controller.grip.matrixWorld);
+  controller.batStart.copy(tmp.a);
+  controller.batEnd.copy(tmp.b);
+}
+
+function collideBat(controller) {
+  if (!batConfig) return;
+  const radius = batConfig.radius;
+  const power = batConfig.power * BAT_HIT_BOOST;
+
+  for (const ball of balls) {
+    if (ball.heldBy) continue;
+
+    closestPointOnSegment(ball.position, controller.batStart, controller.batEnd, tmp.closest);
+    tmp.delta.copy(ball.position).sub(tmp.closest);
+    const minDist = ball.radius + radius;
+    const distSq = tmp.delta.lengthSq();
+    if (distSq === 0 || distSq >= minDist * minDist) continue;
+
+    const dist = Math.sqrt(distSq);
+    tmp.normal.copy(tmp.delta).divideScalar(dist);
+    ball.position.addScaledVector(tmp.normal, minDist - dist + 0.001);
+
+    // Approximate the bat point's velocity from its previous segment position.
+    const span = controller.batStart.distanceTo(controller.batEnd) || 1;
+    const t = controller.batStart.distanceTo(tmp.closest) / span;
+    tmp.prevA.copy(controller.prevBatStart).lerp(controller.prevBatEnd, t);
+    tmp.hitVel.copy(tmp.closest).sub(tmp.prevA).divideScalar(lastDt);
+    tmp.hitVel.addScaledVector(controller.velocity, 0.25);
+
+    tmp.velocity.copy(tmp.hitVel).sub(ball.velocity);
+    const impact = tmp.velocity.dot(tmp.normal);
+    if (impact > 0) {
+      ball.velocity.addScaledVector(tmp.normal, (1 + RESTITUTION) * impact * power);
+      if (ball.velocity.lengthSq() > MAX_SPEED * MAX_SPEED) {
+        ball.velocity.setLength(MAX_SPEED);
+      }
+    }
+  }
+}
+
+function closestPointOnSegment(point, start, end, out) {
+  tmp.delta.copy(end).sub(start);
+  const lengthSq = tmp.delta.lengthSq();
+  if (lengthSq < 1e-8) return out.copy(start);
+  const t = Math.min(1, Math.max(0, tmp.local.copy(point).sub(start).dot(tmp.delta) / lengthSq));
+  return out.copy(start).addScaledVector(tmp.delta, t);
 }
 
 function nearestFreeBall(point, range) {

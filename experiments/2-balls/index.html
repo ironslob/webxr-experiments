@@ -21,7 +21,7 @@
       <p class="lede">
         Quest 3 passthrough. Enter AR drops colored balls into the room scan.
         They bounce off the surfaces you pick. Turn gravity off to keep them
-        floating. Controllers can poke them, or grab and throw them.
+        floating. Controllers can poke, grab and throw, or swing baseball bats.
       </p>
       <form id="settings">
         <div class="option-list">
@@ -70,6 +70,18 @@
             </select>
           </div>
           <div class="option">
+            <label class="option-copy" for="bat">
+              Baseball bat
+              <small>Attach a bat to each controller. Swing to hit the balls.</small>
+            </label>
+            <select id="bat" name="bat">
+              <option value="off" selected>Off</option>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
+          <div class="option">
             <label class="option-copy" for="planes">
               Show planes
               <small>Paint bounce surfaces so you can see what the balls hit.</small>
@@ -83,6 +95,13 @@
             </label>
             <input id="scan" name="scan" type="checkbox" checked />
           </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
         </div>
         <h2 class="controls-title">Controls</h2>
         <ul class="controls">
@@ -92,7 +111,7 @@
           </li>
           <li class="control">
             <b>Controllers</b>
-            <span>In poke mode, push through a ball to knock it. In grab mode, hold trigger near a ball to pick it up, release to throw.</span>
+            <span>In poke mode, push through a ball to knock it. In grab mode, hold trigger near a ball to pick it up, release to throw. With a bat size set, swing the bats into balls to hit them.</span>
           </li>
           <li class="control">
             <b>B or Y</b>
@@ -132,6 +151,7 @@
         });
       }
     </script>
-    <script type="module" src="./main.js?v=gravity"></script>
+    <script type="module" src="./main.js?v=bats"></script>
+    <script src="../../dev-reload.js"></script>
   </body>
 </html>
