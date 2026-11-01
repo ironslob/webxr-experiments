@@ -6,6 +6,8 @@ A Quest 3 passthrough scene, published the same way as [mastermind](https://gith
 
 [Balls](experiments/2-balls/) drops colored balls into the room scan. They bounce off the planes you pick; gravity and controller poke/grab are launch settings.
 
+[Heads](experiments/3-heads/) is that same scene with a GLB head in place of each ball. Collision stays a sphere sized to the model.
+
 Open that page in the Quest browser. The control list is on the page, above Enter AR. Inside the headset, B or Y leaves the session. The Meta button on the right controller opens the system menu. The headset needs a room scan. If it has none, the session can start one.
 
 WebXR needs a secure context. GitHub Pages is HTTPS. On your machine, `localhost` counts too, but passthrough only runs on the headset.

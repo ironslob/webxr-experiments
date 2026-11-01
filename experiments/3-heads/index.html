@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Heads — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 03</p>
+      <h1>Heads</h1>
+      <p class="lede">
+        Quest 3 passthrough. Enter AR drops copies of a GLB head into the room
+        scan. They bounce off the surfaces you pick, colliding as a sphere
+        around the model. Turn gravity off to keep them floating. Controllers
+        can poke, grab and throw, or swing baseball bats.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="count">
+              Heads
+              <small>How many drop into the room when the session starts.</small>
+            </label>
+            <select id="count" name="count">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="40">40</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="bounce">
+              Bounce off
+              <small>Which scanned planes the heads hit.</small>
+            </label>
+            <select id="bounce" name="bounce">
+              <option value="walls">Walls only</option>
+              <option value="walls-floor" selected>Walls and floor</option>
+              <option value="all">All scanned planes</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="gravity">
+              Gravity
+              <small>Off keeps them floating and bouncing forever.</small>
+            </label>
+            <select id="gravity" name="gravity">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="interact">
+              Interaction
+              <small>What your controllers can do to the heads.</small>
+            </label>
+            <select id="interact" name="interact">
+              <option value="none">None</option>
+              <option value="poke" selected>Poke</option>
+              <option value="grab">Grab and throw</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="bat">
+              Baseball bat
+              <small>Attach a bat to each controller. Swing to hit the heads.</small>
+            </label>
+            <select id="bat" name="bat">
+              <option value="off" selected>Off</option>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="planes">
+              Show planes
+              <small>Paint bounce surfaces so you can see what the heads hit.</small>
+            </label>
+            <input id="planes" name="planes" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no scan yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page.</span>
+          </li>
+          <li class="control">
+            <b>Controllers</b>
+            <span>In poke mode, push through a head to knock it. In grab mode, hold trigger near a head to pick it up, release to throw. With a bat size set, swing the bats into heads to hit them.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">The controls above are the ones inside the headset.</p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Looking for room…</p>
+      <p id="hint">B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js?v=heads"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
