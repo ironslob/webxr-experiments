@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blast — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      .check-grid {
+        display: grid;
+        gap: 6px 14px;
+        justify-items: start;
+      }
+
+      .check-grid label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      @media (min-width: 520px) {
+        .check-grid {
+          grid-template-columns: repeat(2, max-content);
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 04</p>
+      <h1>Blast</h1>
+      <p class="lede">
+        Quest 3 passthrough. Drop a mix of models into the room scan, pick their
+        size, then poke or bat them. A solid hit turns one into a firework and
+        respawns it somewhere else at a random size.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="count">
+              Objects
+              <small>How many drop into the room when the session starts.</small>
+            </label>
+            <select id="count" name="count">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="40">40</option>
+            </select>
+          </div>
+          <div class="option">
+            <div class="option-copy">
+              Models
+              <small>Which meshes can spawn. Leave at least one on.</small>
+            </div>
+            <div class="check-grid">
+              <label><input id="model-matt" name="model-matt" type="checkbox" checked /> Matt's head</label>
+              <label><input id="model-duck" name="model-duck" type="checkbox" checked /> Duck</label>
+              <label><input id="model-fox" name="model-fox" type="checkbox" checked /> Fox</label>
+              <label><input id="model-helmet" name="model-helmet" type="checkbox" checked /> Helmet</label>
+              <label><input id="model-flamingo" name="model-flamingo" type="checkbox" checked /> Flamingo</label>
+            </div>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="size">
+              Object size
+              <small>Small matches the heads scene. Random picks any size up to a cap.</small>
+            </label>
+            <select id="size" name="size">
+              <option value="small" selected>Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+              <option value="insane">Insane</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="bounce">
+              Bounce off
+              <small>Which scanned planes the objects hit.</small>
+            </label>
+            <select id="bounce" name="bounce">
+              <option value="walls">Walls only</option>
+              <option value="walls-floor" selected>Walls and floor</option>
+              <option value="all">All scanned planes</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="gravity">
+              Gravity
+              <small>Off keeps them floating and bouncing forever.</small>
+            </label>
+            <select id="gravity" name="gravity">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="interact">
+              Interaction
+              <small>What your controllers can do. Hits explode into fireworks.</small>
+            </label>
+            <select id="interact" name="interact">
+              <option value="none">None</option>
+              <option value="poke" selected>Poke</option>
+              <option value="grab">Grab and throw</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="bat">
+              Baseball bat
+              <small>Attach a bat to each controller. Swing to blast objects.</small>
+            </label>
+            <select id="bat" name="bat">
+              <option value="off" selected>Off</option>
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="planes">
+              Show planes
+              <small>Paint bounce surfaces so you can see what the objects hit.</small>
+            </label>
+            <input id="planes" name="planes" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no scan yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page.</span>
+          </li>
+          <li class="control">
+            <b>Controllers</b>
+            <span>In poke mode, push through an object to blast it. In grab mode, hold trigger near one to pick it up, release to throw. With a bat size set, swing into objects to blast them. Each blast respawns at a random place, velocity, and size.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">The controls above are the ones inside the headset.</p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Looking for room…</p>
+      <p id="hint">B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js?v=blast"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
