@@ -48,8 +48,10 @@ const tmp = {
   axis: new THREE.Vector3(),
   tangent: new THREE.Vector3(),
   xAxis: new THREE.Vector3(),
+  yAxis: new THREE.Vector3(),
   zAxis: new THREE.Vector3(),
   inverse: new THREE.Matrix4(),
+  basis: new THREE.Matrix4(),
   quat: new THREE.Quaternion(),
   hot: new THREE.Color(),
   head: new THREE.Vector3(),
@@ -73,7 +75,10 @@ let spawned = false;
 let audioCtx = null;
 let analyser = null;
 let freqData = null;
+let timeData = null;
 let micStream = null;
+let micSource = null;
+let micGain = null;
 let demoNodes = [];
 let demoTimer = 0;
 let audioReady = false;
@@ -99,6 +104,13 @@ window.addEventListener("resize", () => {
 enter.addEventListener("click", () => {
   applyForm();
 
+  // Start mic in this same gesture, before requestSession yields, so the
+  // permission prompt is not buried under the immersive session.
+  let micPromise = null;
+  if (audioMode === "mic" && navigator.mediaDevices?.getUserMedia) {
+    micPromise = navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  }
+
   // requestSession must start in this click, before any await.
   const sessionPromise = navigator.xr.requestSession("immersive-ar", {
     requiredFeatures: ["plane-detection", "local-floor"],
@@ -106,7 +118,7 @@ enter.addEventListener("click", () => {
     domOverlay: { root: overlay },
   });
 
-  beginAudio().catch((error) => {
+  beginAudio(micPromise).catch((error) => {
     console.warn(error);
     audioLabel = "audio failed";
     note.textContent = error?.message || "Could not start audio. Try Demo beat.";
@@ -136,7 +148,7 @@ renderer.xr.addEventListener("sessionstart", () => {
   scatterCooldown = 0;
   clock.start();
   status.textContent = "Looking for room…";
-  if (audioCtx?.state === "suspended") audioCtx.resume().catch(() => {});
+  resumeAudioContext();
 });
 
 renderer.xr.addEventListener("sessionend", () => {
@@ -174,34 +186,49 @@ function applyForm() {
   scan = form.querySelector("#scan").checked;
 }
 
-async function beginAudio() {
+async function beginAudio(micPromise) {
   stopAudio();
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = 0.72;
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.55;
   freqData = new Uint8Array(analyser.frequencyBinCount);
+  timeData = new Uint8Array(analyser.fftSize);
   audioReady = false;
 
   if (audioMode === "demo") {
     wireDemoBeat(audioCtx, analyser);
     audioLabel = "demo beat";
   } else {
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: true,
-      },
-      video: false,
-    });
-    const source = audioCtx.createMediaStreamSource(micStream);
-    source.connect(analyser);
+    if (!micPromise) {
+      micPromise = navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    }
+    micStream = await micPromise;
+    if (!micStream?.getAudioTracks?.().some((track) => track.readyState === "live")) {
+      throw new Error("Microphone permission was denied or no live audio track.");
+    }
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    // Quest mics often arrive quiet into Web Audio — boost before analyse.
+    micGain = audioCtx.createGain();
+    micGain.gain.value = 3.2;
+    micSource.connect(micGain);
+    micGain.connect(analyser);
     audioLabel = "mic";
   }
 
-  if (audioCtx.state === "suspended") await audioCtx.resume();
+  await resumeAudioContext();
   audioReady = true;
+}
+
+async function resumeAudioContext() {
+  if (!audioCtx) return;
+  if (audioCtx.state === "suspended") {
+    try {
+      await audioCtx.resume();
+    } catch (error) {
+      console.warn(error);
+    }
+  }
 }
 
 function wireDemoBeat(ctx, dest) {
@@ -296,6 +323,22 @@ function stopAudio() {
     }
   }
   demoNodes = [];
+  if (micGain) {
+    try {
+      micGain.disconnect();
+    } catch {
+      /* ignore */
+    }
+    micGain = null;
+  }
+  if (micSource) {
+    try {
+      micSource.disconnect();
+    } catch {
+      /* ignore */
+    }
+    micSource = null;
+  }
   if (micStream) {
     for (const track of micStream.getTracks()) track.stop();
     micStream = null;
@@ -306,6 +349,7 @@ function stopAudio() {
   }
   analyser = null;
   freqData = null;
+  timeData = null;
   audioReady = false;
   audioLabel = "no audio";
 }
@@ -314,6 +358,10 @@ function sampleAudio(dt) {
   let bass = 0;
   let mid = 0;
   let energy = 0;
+
+  if (audioCtx?.state === "suspended") {
+    resumeAudioContext();
+  }
 
   if (audioReady && analyser && freqData) {
     analyser.getByteFrequencyData(freqData);
@@ -331,12 +379,25 @@ function sampleAudio(dt) {
     bass /= bassEnd;
     mid /= Math.max(1, midEnd - bassEnd);
     energy /= n;
+
+    // Time-domain RMS catches quiet Quest mics that look flat in frequency bins.
+    if (timeData) {
+      analyser.getByteTimeDomainData(timeData);
+      let sumSq = 0;
+      for (let i = 0; i < timeData.length; i += 1) {
+        const v = (timeData[i] - 128) / 128;
+        sumSq += v * v;
+      }
+      const rms = Math.sqrt(sumSq / timeData.length);
+      energy = Math.max(energy, rms * 2.4);
+      bass = Math.max(bass, rms * 2.1);
+    }
   }
 
   const gain = sensitivity;
-  bass = Math.min(1, bass * gain * 1.35);
-  mid = Math.min(1, mid * gain * 1.2);
-  energy = Math.min(1, energy * gain * 1.25);
+  bass = Math.min(1, bass * gain * 1.5);
+  mid = Math.min(1, mid * gain * 1.35);
+  energy = Math.min(1, energy * gain * 1.45);
 
   const ease = 1 - Math.pow(0.001, dt);
   bassSmooth += (bass - bassSmooth) * ease;
@@ -347,9 +408,9 @@ function sampleAudio(dt) {
   beatCooldown = Math.max(0, beatCooldown - dt);
   beatPulse = Math.max(0, beatPulse - dt * 3.2);
 
-  if (bassSmooth > bassAvg * 1.45 + 0.08 && bassSmooth > 0.18 && beatCooldown <= 0) {
+  if (bassSmooth > bassAvg * 1.35 + 0.05 && bassSmooth > 0.12 && beatCooldown <= 0) {
     beatPulse = 1;
-    beatCooldown = 0.16;
+    beatCooldown = 0.14;
   }
 
   return {
@@ -459,15 +520,15 @@ function createArrowMesh(color) {
     metalness: 0.08,
   });
 
-  // Tip points along -Z so Object3D.lookAt aims the arrow in the travel direction.
+  // Tip points along +Z. placeArrow maps local +Z onto the travel direction.
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.11, 8), mat);
   shaft.rotation.x = Math.PI / 2;
-  shaft.position.z = 0.015;
+  shaft.position.z = -0.015;
   shaft.frustumCulled = false;
 
   const tip = new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.055, 10), mat.clone());
-  tip.rotation.x = -Math.PI / 2;
-  tip.position.z = -0.055;
+  tip.rotation.x = Math.PI / 2;
+  tip.position.z = 0.055;
   tip.frustumCulled = false;
 
   group.add(shaft, tip);
@@ -667,9 +728,16 @@ function placeArrow(arrow) {
   arrow.mesh.position.copy(tmp.world);
 
   if (tmp.dir.lengthSq() < 1e-8) return;
-  tmp.next.copy(tmp.world).add(tmp.dir);
-  arrow.mesh.up.copy(tmp.normal);
-  arrow.mesh.lookAt(tmp.next);
+
+  // Right-handed basis: +Z = travel, +Y = surface normal, +X = normal × travel.
+  // Avoid Object3D.lookAt here — it aims -Z, which made the tips trail the motion.
+  tmp.zAxis.copy(tmp.dir).normalize();
+  tmp.xAxis.crossVectors(tmp.normal, tmp.zAxis);
+  if (tmp.xAxis.lengthSq() < 1e-8) return;
+  tmp.xAxis.normalize();
+  tmp.yAxis.crossVectors(tmp.zAxis, tmp.xAxis).normalize();
+  tmp.basis.makeBasis(tmp.xAxis, tmp.yAxis, tmp.zAxis);
+  arrow.mesh.quaternion.setFromRotationMatrix(tmp.basis);
 }
 
 function planeLocalToWorld(entry, x, z, out) {
