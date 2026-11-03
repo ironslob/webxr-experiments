@@ -1,29 +1,42 @@
 # WebXR Experiments
 
-A Quest 3 passthrough scene, published the same way as [mastermind](https://github.com/ironslob/mastermind): GitHub Pages from the `main` branch, project site at [ironslob.github.io/webxr-experiments](https://ironslob.github.io/webxr-experiments/).
+Small [Quest 3](https://www.meta.com/quest/quest-3/) AR scenes that run in your room through the headset’s passthrough camera.
 
-[Walls](experiments/1-walls/) asks for an `immersive-ar` session and the room’s detected planes. Each vertical plane, usually a wall from Space Setup, is drawn as its own translucent color.
+**[Open the live site →](https://ironslob.github.io/webxr-experiments/)**
 
-[Balls](experiments/2-balls/) drops colored balls into the room scan. They bounce off the planes you pick; gravity and controller poke/grab are launch settings.
+## Try it
 
-[Heads](experiments/3-heads/) is that same scene with a GLB head in place of each ball. Collision stays a sphere sized to the model.
+1. Put on a Quest 3 and open the **Meta Browser**.
+2. Go to [ironslob.github.io/webxr-experiments](https://ironslob.github.io/webxr-experiments/).
+3. Pick an experiment, check the settings and controls, then tap **Enter AR**.
 
-[Blast](experiments/4-blast/) mixes several GLB models at chosen or random sizes. A solid hit turns one into a firework and respawns it elsewhere.
+You’ll need a room scan (Space Setup). If the headset doesn’t have one yet, most scenes can start one for you.
 
-[Viz](experiments/5-viz/) floats geometric shapes and models in the room and drives them from the microphone or a demo beat — pulse, stretch, spin, flash, hop, each object with a random mix of reactions.
+Inside a session:
 
-Open that page in the Quest browser. The control list is on the page, above Enter AR. Inside the headset, B or Y leaves the session. The Meta button on the right controller opens the system menu. The headset needs a room scan. If it has none, the session can start one.
+- **B** (right controller) or **Y** (left) ends the experience.
+- The **Meta** button opens the system menu if you need another way out.
 
-WebXR needs a secure context. GitHub Pages is HTTPS. On your machine, `localhost` counts too, but passthrough only runs on the headset.
+These pages only start immersive AR on a Quest. A phone or laptop can show the setup screen, but not the room overlay.
+
+## Experiments
+
+| | What it does |
+| --- | --- |
+| [Walls](https://ironslob.github.io/webxr-experiments/experiments/1-walls/) | Colors each wall from the room scan with its own translucent tint. |
+| [Balls](https://ironslob.github.io/webxr-experiments/experiments/2-balls/) | Drops bouncing colored balls into the room. Poke them, grab and throw, or swing a bat. |
+| [Heads](https://ironslob.github.io/webxr-experiments/experiments/3-heads/) | Same idea as Balls, but with a 3D head model instead of spheres. |
+| [Blast](https://ironslob.github.io/webxr-experiments/experiments/4-blast/) | Mix of models at different sizes. Hit one and it fireworks, then pops back elsewhere. |
+| [Viz](https://ironslob.github.io/webxr-experiments/experiments/5-viz/) | Shapes and models that react to the mic or a demo beat — pulse, spin, flash, hop. |
+
+## About the code
+
+Static HTML, CSS, and JavaScript with [three.js](https://threejs.org/) from a CDN — no build step. The site is served from the `main` branch on GitHub Pages.
+
+To browse the files locally:
 
 ```bash
 python3 -m http.server 8765
 ```
 
-Each experiment has a **Dev reload** checkbox in settings. Turn it on to poll the page and reload when files change. `?dev` in the URL does the same (`?dev=2000` sets the poll interval in milliseconds).
-
-The scene uses [three.js](https://threejs.org/) from a CDN, so there is no build step. Pages deploys the files on `main` as they are.
-
-Each experiment is a folder. Its `index.html` describes the scene, shows the settings, lists the controls, and starts the session from that button press. The root `index.html` only lists the experiments.
-
-Keep asset URLs relative so the site works both at the domain root locally and under `/webxr-experiments/` on GitHub Pages.
+Then open `http://localhost:8765/` in a browser. Immersive AR still needs the headset.
