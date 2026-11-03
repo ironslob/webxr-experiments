@@ -28,6 +28,8 @@ These pages only start immersive AR on a Quest. A phone or laptop can show the s
 | [Heads](https://ironslob.github.io/webxr-experiments/experiments/3-heads/) | Same idea as Balls, but with a 3D head model instead of spheres. |
 | [Blast](https://ironslob.github.io/webxr-experiments/experiments/4-blast/) | Mix of models at different sizes. Hit one and it fireworks, then pops back elsewhere. |
 | [Viz](https://ironslob.github.io/webxr-experiments/experiments/5-viz/) | Shapes and models that react to the mic or a demo beat — pulse, spin, flash, hop. |
+| [Arrows](https://ironslob.github.io/webxr-experiments/experiments/6-arrows/) | Arrows crawl floors, walls, and ceilings; sound makes them pulse. |
+| [Capture](https://ironslob.github.io/webxr-experiments/experiments/7-capture/) | Bakes camera colour onto the Space Setup mesh, then drops you into the opaque capture. |
 
 ## About the code
 

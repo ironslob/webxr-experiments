@@ -239,6 +239,10 @@ select {
   transform: translateX(-50%);
 }
 
+.enter.finish {
+  bottom: 88px;
+}
+
 .dev-badge {
   position: fixed;
   left: 18px;

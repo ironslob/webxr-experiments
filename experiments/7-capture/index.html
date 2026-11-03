@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Capture — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 07</p>
+      <h1>Capture</h1>
+      <p class="lede">
+        Builds a textured model of your room on Quest 3. Geometry comes from the
+        Space Setup mesh; colour is baked from the headset cameras as you look
+        around, gated by depth sensing when the browser provides it. Finish and
+        passthrough drops away so you stand inside the capture.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="quality">
+              Bake quality
+              <small>Higher quality subdivides the mesh and keeps more camera keyframes.</small>
+            </label>
+            <select id="quality" name="quality">
+              <option value="balanced" selected>Balanced</option>
+              <option value="high">High</option>
+              <option value="max">Max</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="cameras">
+              Cameras
+              <small>Stereo uses both outward Quest cameras when the browser lists them.</small>
+            </label>
+            <select id="cameras" name="cameras">
+              <option value="stereo" selected>Stereo when available</option>
+              <option value="single">Single camera</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="depth">
+              Depth gate
+              <small>Reject paint samples that disagree with WebXR depth.</small>
+            </label>
+            <select id="depth" name="depth">
+              <option value="on" selected>On when available</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="preview">
+              Live preview
+              <small>Show accumulating colour on the mesh while you scan.</small>
+            </label>
+            <select id="preview" name="preview">
+              <option value="paint" selected>Painted mesh</option>
+              <option value="coverage">Coverage heat</option>
+              <option value="shell">Neutral shell</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no mesh yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page. Camera permission follows after.</span>
+          </li>
+          <li class="control">
+            <b>Look around</b>
+            <span>Hold still briefly on each surface. Keyframes fire automatically when the head settles.</span>
+          </li>
+          <li class="control">
+            <b>Squeeze</b>
+            <span>Force a keyframe from the current view, even while moving.</span>
+          </li>
+          <li class="control">
+            <b>Trigger or A</b>
+            <span>Finishes the bake and drops you into the opaque captured room.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">
+          Space Setup mesh has no textures in WebXR. This page paints colour from
+          the Quest cameras onto that mesh, using depth to reject bad samples.
+        </p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Loading room mesh…</p>
+      <p id="hint">Look around · Squeeze keyframe · Trigger finishes</p>
+      <button id="finish" class="launch enter finish" type="button" hidden>Finish capture</button>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
