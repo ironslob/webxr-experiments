@@ -8,6 +8,10 @@ A Quest 3 passthrough scene, published the same way as [mastermind](https://gith
 
 [Heads](experiments/3-heads/) is that same scene with a GLB head in place of each ball. Collision stays a sphere sized to the model.
 
+[Blast](experiments/4-blast/) mixes several GLB models at chosen or random sizes. A solid hit turns one into a firework and respawns it elsewhere.
+
+[Viz](experiments/5-viz/) floats geometric shapes and models in the room and drives them from the microphone or a demo beat — pulse, stretch, spin, flash, hop, each object with a random mix of reactions.
+
 Open that page in the Quest browser. The control list is on the page, above Enter AR. Inside the headset, B or Y leaves the session. The Meta button on the right controller opens the system menu. The headset needs a room scan. If it has none, the session can start one.
 
 WebXR needs a secure context. GitHub Pages is HTTPS. On your machine, `localhost` counts too, but passthrough only runs on the headset.
