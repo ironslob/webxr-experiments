@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Arrows — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 06</p>
+      <h1>Arrows</h1>
+      <p class="lede">
+        Quest 3 passthrough. Arrows crawl along scanned floors, walls, and
+        ceilings. They wander and turn at random. Loud sound makes them pulse
+        and shift color. Move around a lot and they scatter. Hit a wall from the
+        floor and they climb it; hit a floor or ceiling from a wall and they
+        keep going along that surface.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="count">
+              Arrows
+              <small>How many crawl the room when the session starts.</small>
+            </label>
+            <select id="count" name="count">
+              <option value="12">12</option>
+              <option value="24" selected>24</option>
+              <option value="40">40</option>
+              <option value="60">60</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="speed">
+              Speed
+              <small>How fast they travel along the surfaces.</small>
+            </label>
+            <select id="speed" name="speed">
+              <option value="slow">Slow</option>
+              <option value="medium" selected>Medium</option>
+              <option value="fast">Fast</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="audio">
+              Audio
+              <small>Mic listens in the room. Demo beat plays a built-in pattern for testing.</small>
+            </label>
+            <select id="audio" name="audio">
+              <option value="mic" selected>Microphone</option>
+              <option value="demo">Demo beat</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="sensitivity">
+              Sound sensitivity
+              <small>How hard arrows pulse and recolor when sound hits.</small>
+            </label>
+            <select id="sensitivity" name="sensitivity">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scatter">
+              Scatter
+              <small>How easily your movement redirects the arrows.</small>
+            </label>
+            <select id="scatter" name="scatter">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="wander">
+              Wander
+              <small>How often they pick a new direction on their own.</small>
+            </label>
+            <select id="wander" name="wander">
+              <option value="rare">Rare</option>
+              <option value="medium" selected>Medium</option>
+              <option value="often">Often</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="planes">
+              Show planes
+              <small>Paint crawl surfaces so you can see the paths.</small>
+            </label>
+            <input id="planes" name="planes" type="checkbox" />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no scan yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page and opens the mic or demo beat.</span>
+          </li>
+          <li class="control">
+            <b>Sound</b>
+            <span>Play music or make noise near the headset. Arrows pulse and change color with the energy.</span>
+          </li>
+          <li class="control">
+            <b>Move</b>
+            <span>Walk or swing your head hard and the arrows scatter into new directions.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">The controls above are the ones inside the headset.</p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Looking for room…</p>
+      <p id="hint">B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js?v=arrows"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
