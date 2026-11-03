@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Viz — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      .check-grid {
+        display: grid;
+        gap: 6px 14px;
+        justify-items: start;
+      }
+
+      .check-grid label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        font-size: 14px;
+      }
+
+      @media (min-width: 520px) {
+        .check-grid {
+          grid-template-columns: repeat(2, max-content);
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 05</p>
+      <h1>Viz</h1>
+      <p class="lede">
+        Quest 3 passthrough. Geometric shapes and a few models float in the
+        room and dance to sound — pulse, stretch, spin, flash color, jump on
+        beats. Each object gets a random mix of reactions. Play music near the
+        headset, or use the built-in demo beat.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option">
+            <label class="option-copy" for="count">
+              Objects
+              <small>How many float into the room when the session starts.</small>
+            </label>
+            <select id="count" name="count">
+              <option value="8">8</option>
+              <option value="14" selected>14</option>
+              <option value="24">24</option>
+              <option value="36">36</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="mix">
+              Mix
+              <small>Shapes are old-school bars, rings, and solids. Models scale and flash with the beat.</small>
+            </label>
+            <select id="mix" name="mix">
+              <option value="shapes">Shapes only</option>
+              <option value="models">Models only</option>
+              <option value="both" selected>Shapes and models</option>
+            </select>
+          </div>
+          <div class="option">
+            <div class="option-copy">
+              Models
+              <small>Used when Mix includes models. Leave at least one on.</small>
+            </div>
+            <div class="check-grid">
+              <label><input id="model-matt" name="model-matt" type="checkbox" checked /> Matt's head</label>
+              <label><input id="model-duck" name="model-duck" type="checkbox" checked /> Duck</label>
+              <label><input id="model-fox" name="model-fox" type="checkbox" checked /> Fox</label>
+              <label><input id="model-helmet" name="model-helmet" type="checkbox" checked /> Helmet</label>
+              <label><input id="model-flamingo" name="model-flamingo" type="checkbox" checked /> Flamingo</label>
+            </div>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="audio">
+              Audio
+              <small>Mic listens to music in the room. Demo beat plays a built-in pattern so you can test without speakers.</small>
+            </label>
+            <select id="audio" name="audio">
+              <option value="mic" selected>Microphone</option>
+              <option value="demo">Demo beat</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="sensitivity">
+              Sensitivity
+              <small>How hard the objects react to quiet or loud sound.</small>
+            </label>
+            <select id="sensitivity" name="sensitivity">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="layout">
+              Layout
+              <small>Cloud hangs in front of you. Room scatters them through the scanned space.</small>
+            </label>
+            <select id="layout" name="layout">
+              <option value="cloud" selected>Cloud in front</option>
+              <option value="room">Scatter in room</option>
+              <option value="ring">Ring around you</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="planes">
+              Show planes
+              <small>Paint scanned surfaces so you can see the room bounds.</small>
+            </label>
+            <input id="planes" name="planes" type="checkbox" />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="scan">
+              Room scan
+              <small>If the headset has no scan yet, ask it to make one.</small>
+            </label>
+            <input id="scan" name="scan" type="checkbox" checked />
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page and opens the mic or demo beat.</span>
+          </li>
+          <li class="control">
+            <b>Sound</b>
+            <span>Play music near the headset, or pick Demo beat. Objects pulse, stretch, spin, recolor, and jump on hits.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <button id="enter" class="launch" type="button">Enter AR</button>
+        <p class="note" id="note">The controls above are the ones inside the headset.</p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Looking for room…</p>
+      <p id="hint">B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js?v=viz"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
