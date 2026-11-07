@@ -1,5 +1,5 @@
 (() => {
-  const targets = ["./", "./main.js", "./model.glb", "../../styles.css", "../../dev-reload.js"];
+  const targets = ["./", "./main.js", "./logic.js", "./model.glb", "../../styles.css", "../../dev-reload.js"];
   const fingerprints = new Map();
   const checkbox = document.querySelector("#dev");
   let timer = 0;
