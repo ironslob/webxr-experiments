@@ -30,6 +30,7 @@ These pages only start immersive AR on a Quest. A phone or laptop can show the s
 | [Viz](https://ironslob.github.io/webxr-experiments/experiments/5-viz/) | Shapes and models that react to the mic or a demo beat — pulse, spin, flash, hop. |
 | [Arrows](https://ironslob.github.io/webxr-experiments/experiments/6-arrows/) | Arrows crawl floors, walls, and ceilings; sound makes them pulse. |
 | [Capture](https://ironslob.github.io/webxr-experiments/experiments/7-capture/) | Bakes camera colour onto the Space Setup mesh, then drops you into the opaque capture. |
+| [Lyrics](https://ironslob.github.io/webxr-experiments/experiments/8-lyrics/) | Words drop in on the beat. Grab one with a fist and pull it into a firework at your chest. |
 
 ## About the code
 

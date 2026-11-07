@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lyrics — WebXR Experiments</title>
+    <link rel="stylesheet" href="../../styles.css" />
+    <style>
+      .option.stack {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      textarea {
+        width: 100%;
+        margin-top: 10px;
+        min-height: 9rem;
+        resize: vertical;
+        background: var(--bg);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font: inherit;
+        line-height: 1.45;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .launch.ghost {
+        background: transparent;
+        color: var(--ink);
+        box-shadow: inset 0 0 0 1px var(--line);
+      }
+
+      #exit.enter {
+        left: auto;
+        right: 18px;
+        bottom: 18px;
+        transform: none;
+        pointer-events: auto;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.187.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.187.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="site" id="setup">
+      <p class="kicker"><a href="../../">Experiments</a> · 08</p>
+      <h1>Lyrics</h1>
+      <p class="lede">
+        Quest 3 passthrough. Play a mix out loud and the words drop in front of
+        you on the beat. Close a fist on one — your hand, or the grip of a
+        controller — and pull it down into the ring at your chest. It goes into
+        you and shoots back up as a firework. The more lyrics you pull in, the
+        higher and wider that display climbs.
+      </p>
+      <form id="settings">
+        <div class="option-list">
+          <div class="option stack">
+            <label class="option-copy" for="words">
+              Words
+              <small>Shown in order on each beat. Paste the words you want to catch, or keep these.</small>
+            </label>
+            <textarea id="words" name="words" spellcheck="false">light
+rise
+hold
+on
+closer
+fire
+pull
+it
+down
+into
+you
+shoot
+back
+up
+higher
+we
+move
+all
+night
+catch
+the
+spark
+bring
+it
+home
+let
+it
+bloom
+again
+heart
+loud
+stay
+with
+me
+now
+open
+sky
+burn
+bright
+take
+this
+sound
+and
+run</textarea>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="count">
+              In the air
+              <small>How many words can float in front of you at once.</small>
+            </label>
+            <select id="count" name="count">
+              <option value="8" selected>8</option>
+              <option value="12">12</option>
+              <option value="18">18</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="audio">
+              Audio
+              <small>Mic listens to a mix in the room. Demo beat is a built-in pulse for trying the grab.</small>
+            </label>
+            <select id="audio" name="audio">
+              <option value="mic" selected>Microphone</option>
+              <option value="demo">Demo beat</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="sensitivity">
+              Sensitivity
+              <small>How readily a beat drops the next word.</small>
+            </label>
+            <select id="sensitivity" name="sensitivity">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="dev">
+              Dev reload
+              <small>Poll this page and reload when the files change.</small>
+            </label>
+            <input id="dev" name="dev" type="checkbox" />
+          </div>
+        </div>
+        <h2 class="controls-title">Controls</h2>
+        <ul class="controls">
+          <li class="control">
+            <b>Enter AR</b>
+            <span>Starts the session from this page and opens the mic or demo beat.</span>
+          </li>
+          <li class="control">
+            <b>Fist</b>
+            <span>With hand tracking, close your fist on a word to grab it. Open your hand to let go.</span>
+          </li>
+          <li class="control">
+            <b>Squeeze</b>
+            <span>On a controller, squeeze the grip — or pull the trigger — to grab the word in your fist.</span>
+          </li>
+          <li class="control">
+            <b>Pull in</b>
+            <span>Draw the word down into the ring at your chest. It bursts upward from that ring. Each word you feed makes the firework taller, wider, and busier.</span>
+          </li>
+          <li class="control">
+            <b>B or Y</b>
+            <span>Leaves the session. B is on the right controller, Y on the left.</span>
+          </li>
+          <li class="control">
+            <b>Meta</b>
+            <span>Opens the system menu on the right controller. Use it if B or Y will not close the session.</span>
+          </li>
+        </ul>
+        <div class="actions">
+          <button id="enter" class="launch" type="button">Enter AR</button>
+          <button id="preview" class="launch ghost" type="button" hidden>Preview on screen</button>
+        </div>
+        <p class="note" id="note">
+          The ring sits at your chest and the firework stays in front of you.
+          Paste different words before you enter if you want the mix’s lyrics.
+        </p>
+      </form>
+    </main>
+    <div id="overlay">
+      <p id="status">Loading letters…</p>
+      <p id="hint">Fist grabs · pull down into the ring · B or Y exits</p>
+      <button id="exit" class="launch enter" type="button">Exit</button>
+    </div>
+    <script>
+      const note = document.querySelector("#note");
+      const enter = document.querySelector("#enter");
+
+      function unavailable() {
+        note.textContent = "This browser cannot start immersive AR. Open the page in the Quest 3 browser, or use Preview on screen.";
+        enter.disabled = true;
+        enter.textContent = "AR not available";
+      }
+
+      if (!navigator.xr) {
+        unavailable();
+      } else {
+        const support = navigator.xr.isSessionSupported("immersive-ar").catch(() => false);
+        const timeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), 1000));
+        Promise.race([support, timeout]).then((result) => {
+          if (result === false) unavailable();
+        });
+      }
+    </script>
+    <script type="module" src="./main.js"></script>
+    <script src="../../dev-reload.js"></script>
+  </body>
+</html>
