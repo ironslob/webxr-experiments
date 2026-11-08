@@ -4,6 +4,8 @@ import {
   MIN_SLICE_SPEED,
   advanceCombo,
   bladeHit,
+  bladeSection,
+  canSliceAgain,
   chooseTarget,
   compareScores,
   formatClock,
@@ -699,6 +701,7 @@ function spawnOne(def, spread) {
     capMap: def.capMap || null,
     capEmissive: def.capEmissive || 0,
     burst: def.burst || def.inside,
+    cuts: 0,
     age: 0,
     sliced: false,
     dead: false,
@@ -723,16 +726,8 @@ function sliceAll() {
     if (!controller.canSlice) continue;
     const segments = swingSegments(controller.prevBase, controller.prevTip, controller.base, controller.tip);
     const hits = [];
-    for (const target of targets) {
-      if (target.sliced || target.dead) continue;
-      const hit = bladeHit(segments, target.group.position, target.radius);
-      if (!hit) continue;
-      hits.push({
-        target,
-        hit,
-        along: target.group.position.distanceToSquared(controller.prevTip),
-      });
-    }
+    for (const target of targets) considerSlice(hits, target, segments, controller);
+    for (const half of halves) considerSlice(hits, half, segments, controller);
     hits.sort((a, b) => a.along - b.along);
     for (const entry of hits) {
       if (entry.target.sliced) continue;
@@ -747,6 +742,36 @@ function sliceAll() {
     if (!target.sliced) scene.remove(target.group);
     targets.splice(i, 1);
   }
+
+  for (let i = halves.length - 1; i >= 0; i -= 1) {
+    if (!halves[i].sliced) continue;
+    disposeHalf(halves[i]);
+    halves.splice(i, 1);
+  }
+}
+
+function considerSlice(hits, target, segments, controller) {
+  if (!canCut(target)) return;
+  const center = pieceCenter(target, tmp.hit);
+  const hit = bladeHit(segments, center, target.radius);
+  if (!hit) return;
+  hits.push({
+    target,
+    hit,
+    along: center.distanceToSquared(controller.prevTip),
+  });
+}
+
+function canCut(piece) {
+  if (piece.sliced || piece.dead) return false;
+  if (piece.ripe && performance.now() < piece.ripe) return false;
+  if (piece.hazard) return true;
+  return canSliceAgain(piece.cuts || 0);
+}
+
+function pieceCenter(piece, out) {
+  if (!piece.hitLocal) return out.copy(piece.group.position);
+  return piece.group.localToWorld(out.copy(piece.hitLocal));
 }
 
 function resolveSlice(target, controller, hit) {
@@ -760,16 +785,18 @@ function resolveSlice(target, controller, hit) {
     combo,
     clean: hit.clean,
     hazard: target.hazard,
+    cuts: target.cuts || 0,
   });
   score = Math.max(0, score + points);
+  const at = pieceCenter(target, tmp.hit).clone();
   spawnPopup(
-    target.group.position.clone(),
+    at,
     popupLines(points, combo, hit.clean, target.hazard),
     popupColor(points, hit.clean, target.hazard),
   );
 
   if (target.hazard) {
-    burst(target.group.position, target.burst, target.id === "hole");
+    burst(at, target.burst, target.id === "hole");
     scene.remove(target.group);
     playHazard();
     return;
@@ -777,7 +804,7 @@ function resolveSlice(target, controller, hit) {
 
   cutNormal(controller, tmp.cut);
   splitTarget(target, tmp.cut, controller);
-  burst(target.group.position, target.inside, false);
+  burst(at, target.inside, false);
   playSlice(hit.clean, combo);
 }
 
@@ -794,9 +821,10 @@ function splitTarget(target, normal, controller) {
   target.group.updateWorldMatrix(true, true);
   tmp.inverse.copy(target.group.matrixWorld).invert();
   tmp.localNormal.copy(normal).transformDirection(tmp.inverse);
-  if (tmp.localNormal.lengthSq() < 1e-8) tmp.localNormal.set(1, 0, 0);
+  if (tmp.localNormal.lengthSq() < 1e-8) tmp.localNormal.set(0, 1, 0);
   else tmp.localNormal.normalize();
-  tmp.localPoint.copy(target.group.position).applyMatrix4(tmp.inverse);
+  pieceCenter(target, tmp.a);
+  tmp.localPoint.copy(tmp.a).applyMatrix4(tmp.inverse);
 
   const swing = controller.tip.clone().sub(controller.prevTip);
   if (swing.lengthSq() > 1e-8) swing.normalize();
@@ -807,33 +835,30 @@ function splitTarget(target, normal, controller) {
   halves.push(makeHalf(target, positive, point, swing));
   halves.push(makeHalf(target, positive.clone().negate(), point.clone(), swing));
   scene.remove(target.group);
-  while (halves.length > 24) disposeHalf(halves.shift());
+  while (halves.length > 42) disposeHalf(halves.shift());
 }
 
 function makeHalf(target, localNormal, localPoint, swing) {
   const group = target.group.clone(true);
-  const localPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(localNormal, localPoint);
-  const worldPlane = new THREE.Plane();
-
   group.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const source = Array.isArray(obj.material) ? obj.material : [obj.material];
-    const cloned = source.map((material) => {
-      const next = material.clone();
-      next.clippingPlanes = [worldPlane];
-      next.clipShadows = true;
-      next.side = THREE.DoubleSide;
-      next.needsUpdate = true;
-      return next;
-    });
-    obj.material = Array.isArray(obj.material) ? cloned : cloned[0];
+    if (obj.userData.ownGeometry && obj.geometry) obj.geometry = obj.geometry.clone();
   });
+  const facing = localNormal.clone();
+  if (facing.lengthSq() < 1e-8) facing.set(0, 1, 0);
+  else facing.normalize();
+
+  const localPlanes = (target.localPlanes || []).map((plane) => plane.clone());
+  localPlanes.push(new THREE.Plane().setFromNormalAndCoplanarPoint(facing, localPoint));
+  const worldPlanes = localPlanes.map(() => new THREE.Plane());
+  assignClipPlanes(group, worldPlanes);
 
   const capMat = new THREE.MeshStandardMaterial({
     color: target.capMap ? 0xffffff : target.inside,
     roughness: 0.58,
     metalness: 0.02,
     side: THREE.DoubleSide,
+    clippingPlanes: worldPlanes,
+    clipShadows: true,
     polygonOffset: true,
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
@@ -847,32 +872,70 @@ function makeHalf(target, localNormal, localPoint, swing) {
     capMat.emissive.setHex(target.capEmissive);
     capMat.emissiveIntensity = 0.55;
   }
-  const cap = new THREE.Mesh(new THREE.CircleGeometry(Math.max(0.05, target.radius * 0.9), 18), capMat);
+  const cap = new THREE.Mesh(new THREE.CircleGeometry(Math.max(0.04, target.radius * 0.9), 18), capMat);
   cap.userData.ownGeometry = true;
-  const facing = localNormal.clone().normalize();
+  cap.frustumCulled = false;
   cap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), facing);
   cap.position.copy(localPoint).addScaledVector(facing, 0.005);
   group.add(cap);
 
+  const hitLocal = target.hitLocal ? target.hitLocal.clone() : new THREE.Vector3();
+  hitLocal.addScaledVector(facing, target.radius * 0.4);
+
   scene.add(group);
-  group.updateWorldMatrix(true, true);
-  worldPlane.copy(localPlane).applyMatrix4(group.matrixWorld);
-
-  const velocity = target.velocity.clone();
-  const push = localNormal.clone().transformDirection(group.matrixWorld).normalize();
-  velocity.addScaledVector(push, 0.9);
-  if (swing.lengthSq() > 0) velocity.addScaledVector(swing, 0.45);
-  velocity.y += 0.2;
-
-  return {
+  const half = {
+    id: target.id,
+    name: target.name,
     group,
-    localPlane,
-    worldPlane,
-    velocity,
+    velocity: target.velocity.clone(),
+    radius: Math.max(0.05, target.radius * 0.67),
+    points: target.points,
+    cuts: (target.cuts || 0) + 1,
+    inside: target.inside,
+    hazard: false,
+    stitch: Boolean(target.stitch),
+    capMap: target.capMap || null,
+    capEmissive: target.capEmissive || 0,
+    burst: target.burst || target.inside,
+    hitLocal,
+    localPlanes,
+    worldPlanes,
+    sliced: false,
+    dead: false,
+    ripe: performance.now() + 150,
     axis: new THREE.Vector3(Math.random() - 0.5, 1, Math.random() - 0.5).normalize(),
     spin: 2.4 + Math.random() * 2.2,
     age: 0,
   };
+  const push = facing.clone().transformDirection(group.matrixWorld);
+  if (push.lengthSq() > 1e-8) half.velocity.addScaledVector(push.normalize(), 0.9);
+  if (swing.lengthSq() > 0) half.velocity.addScaledVector(swing, 0.45);
+  half.velocity.y += 0.2;
+  updateHalfPlanes(half);
+  return half;
+}
+
+function assignClipPlanes(group, worldPlanes) {
+  group.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const source = Array.isArray(obj.material) ? obj.material : [obj.material];
+    const cloned = source.map((material) => {
+      const next = material.clone();
+      next.clippingPlanes = worldPlanes;
+      next.clipShadows = true;
+      next.side = THREE.DoubleSide;
+      next.needsUpdate = true;
+      return next;
+    });
+    obj.material = Array.isArray(obj.material) ? cloned : cloned[0];
+  });
+}
+
+function updateHalfPlanes(half) {
+  half.group.updateWorldMatrix(true, true);
+  for (let i = 0; i < half.localPlanes.length; i += 1) {
+    half.worldPlanes[i].copy(half.localPlanes[i]).applyMatrix4(half.group.matrixWorld);
+  }
 }
 
 function updateHalves(dt) {
@@ -882,9 +945,8 @@ function updateHalves(dt) {
     half.velocity.y -= GRAVITY * dt;
     half.group.position.addScaledVector(half.velocity, dt);
     half.group.rotateOnWorldAxis(half.axis, half.spin * dt);
-    half.group.updateWorldMatrix(true, true);
-    // The clip plane is local, so it has to be rewritten into world space as the half tumbles.
-    half.worldPlane.copy(half.localPlane).applyMatrix4(half.group.matrixWorld);
+    // Clip planes are local, so they have to be rewritten into world space as the piece tumbles.
+    updateHalfPlanes(half);
     if (half.age > 2.6 || half.group.position.y < -0.6) {
       disposeHalf(half);
       halves.splice(i, 1);
@@ -1645,6 +1707,7 @@ function buildControllerSwords() {
       disposeObject3D(controller.sword);
     }
     controller.sword = createSword(bladeLength);
+    // Grip spaces are mirrored. Mirroring X turns the right-hand edge onto the left palm.
     if (controller.handedness === "left") controller.sword.scale.x = -1;
     controller.localBase.set(0, 0, -BLADE_ROOT);
     controller.localTip.set(0, 0, -(BLADE_ROOT + bladeLength));
@@ -1691,20 +1754,12 @@ function createSword(length) {
 }
 
 function createBladeGeometry(length) {
-  const segments = 16;
+  const segments = 18;
   const positions = [];
   const indices = [];
   for (let i = 0; i <= segments; i += 1) {
-    const t = i / segments;
-    const width = 0.028 * (1 - t) ** 0.65 + 0.0015;
-    const thick = 0.0065 * (1 - t * 0.92) + 0.0006;
-    const curve = Math.sin(t * Math.PI) * 0.02;
-    const z = -t * length;
-    positions.push(
-      curve + width, 0, z,
-      curve - width * 0.12, thick, z,
-      curve - width * 0.12, -thick, z,
-    );
+    const section = bladeSection(i / segments, length);
+    positions.push(...section.edge, ...section.spineA, ...section.spineB);
   }
   for (let i = 0; i < segments; i += 1) {
     const a = i * 3;

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import {
+  BLADE_EDGE,
   advanceCombo,
   bladeHit,
+  bladeSection,
+  canSliceAgain,
   chooseTarget,
   compareScores,
   emptyTables,
@@ -46,6 +49,45 @@ assert.equal(pointsForSlice({ base: 10, combo: 1, clean: false, hazard: false })
 assert.equal(pointsForSlice({ base: 10, combo: 2, clean: true, hazard: false }), 30);
 assert.equal(pointsForSlice({ base: 25, combo: 3, clean: false, hazard: false }), 75);
 assert.equal(pointsForSlice({ base: 50, combo: 4, clean: true, hazard: true }), -50);
+assert.equal(pointsForSlice({ base: 10, combo: 1, clean: false, hazard: false, cuts: 1 }), 5);
+assert.equal(pointsForSlice({ base: 10, combo: 2, clean: true, hazard: false, cuts: 1 }), 15);
+assert.equal(pointsForSlice({ base: 10, combo: 1, clean: false, hazard: false, cuts: 2 }), 3);
+assert.equal(pointsForSlice({ base: 10, combo: 1, clean: false, hazard: true, cuts: 2 }), -10);
+
+assert.equal(canSliceAgain(0), true);
+assert.equal(canSliceAgain(2), true);
+assert.equal(canSliceAgain(3), false);
+
+function alongEdge(point) {
+  return point[0] * BLADE_EDGE.x + point[1] * BLADE_EDGE.y;
+}
+
+function spineMid(section) {
+  return [
+    (section.spineA[0] + section.spineB[0]) / 2,
+    (section.spineA[1] + section.spineB[1]) / 2,
+    section.spineA[2],
+  ];
+}
+
+for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+  const section = bladeSection(t, 0.68);
+  const spine = spineMid(section);
+  const past =
+    (section.edge[0] - spine[0]) * BLADE_EDGE.x +
+    (section.edge[1] - spine[1]) * BLADE_EDGE.y;
+  assert.ok(past > 0, `edge stays on the cutting side at ${t}`);
+  assert.ok(section.edge[1] < spine[1], `edge is below the spine at ${t}`);
+  assert.ok(section.edge[0] < spine[0], `edge faces the palm at ${t}`);
+}
+
+const guard = bladeSection(0, 0.68);
+const belly = bladeSection(0.5, 0.68);
+const kissaki = bladeSection(1, 0.68);
+assert.ok(alongEdge(spineMid(belly)) > alongEdge(spineMid(guard)) + 0.02);
+assert.ok(alongEdge(spineMid(belly)) > alongEdge(spineMid(kissaki)) + 0.02);
+assert.ok(Math.abs(guard.edge[2]) < 1e-9);
+assert.ok(Math.abs(kissaki.edge[2] + 0.68) < 1e-9);
 
 assert.equal(advanceCombo(0, 0.1, false), 1);
 assert.equal(advanceCombo(1, 0.2, false), 2);

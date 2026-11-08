@@ -2,7 +2,38 @@ export const SCORE_KEY = "webxr-experiments.slice-scores";
 export const COMBO_WINDOW = 0.7;
 export const TOP_N = 8;
 export const MIN_SLICE_SPEED = 0.85;
+export const MAX_CUTS = 3;
 export const MODES = ["fruit", "animals", "cosmos"];
+
+// Grip space points -Z toward the thumb and +X out the back of the right hand.
+// The edge faces down and toward that palm. Left swords mirror X, so theirs faces the other palm.
+const BLADE_EDGE_LEN = Math.hypot(-0.34, -0.94);
+export const BLADE_EDGE = { x: -0.34 / BLADE_EDGE_LEN, y: -0.94 / BLADE_EDGE_LEN };
+
+export function canSliceAgain(cuts) {
+  return (cuts || 0) < MAX_CUTS;
+}
+
+export function bladeSection(t, length) {
+  const clamped = Math.min(1, Math.max(0, t));
+  const width = 0.026 * (1 - clamped) ** 0.7 + 0.0013;
+  const thick = 0.0068 * (1 - clamped * 0.9) + 0.0005;
+  // Zero at the guard and the tip, so the point stays on the chord instead of hooking past the spine.
+  const sori = Math.sin(clamped * Math.PI) * 0.034;
+  const { x: edgeX, y: edgeY } = BLADE_EDGE;
+  const sideX = -edgeY;
+  const sideY = edgeX;
+  const z = -clamped * length;
+  const ox = edgeX * sori;
+  const oy = edgeY * sori;
+  const spineX = ox - edgeX * width * 0.04;
+  const spineY = oy - edgeY * width * 0.04;
+  return {
+    edge: [ox + edgeX * width, oy + edgeY * width, z],
+    spineA: [spineX + sideX * thick, spineY + sideY * thick, z],
+    spineB: [spineX - sideX * thick, spineY - sideY * thick, z],
+  };
+}
 
 export function segmentPointDistanceSq(px, py, pz, ax, ay, az, bx, by, bz) {
   const abx = bx - ax;
@@ -75,11 +106,12 @@ export function bladeHit(segments, center, radius) {
   return { distance: Math.sqrt(best), clean: best <= cleanLimit };
 }
 
-export function pointsForSlice({ base, combo, clean, hazard }) {
+export function pointsForSlice({ base, combo, clean, hazard, cuts = 0 }) {
   if (hazard) return -Math.abs(base);
   const safeCombo = Math.max(1, combo);
   const multiplier = clean ? 1.5 : 1;
-  return Math.max(1, Math.round(Math.abs(base) * safeCombo * multiplier));
+  const aged = Math.abs(base) * 0.5 ** Math.max(0, cuts);
+  return Math.max(1, Math.round(aged * safeCombo * multiplier));
 }
 
 export function advanceCombo(combo, gapSeconds, hazard, windowSeconds = COMBO_WINDOW) {
