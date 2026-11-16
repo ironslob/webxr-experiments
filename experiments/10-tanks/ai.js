@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { heightAt, randomMapPoint, clampToMap } from "./terrain.js";
+import { seatOnTerrain, randomMapPoint, clampToMap } from "./terrain.js";
+import { trackContact } from "./tanks.js";
 
 const HEADING_MIN = 12;
 const HEADING_MAX = 28;
@@ -55,14 +56,10 @@ export function createEnemyState(id, tank, spawn, now = 0) {
 }
 
 export function placeTankOnTerrain(state) {
-  const y = heightAt(state.x, state.z);
-  state.tank.root.position.set(state.x, y, state.z);
-  state.tank.root.rotation.y = state.yaw;
-  const ahead = 1.2;
-  const fx = state.x + Math.sin(state.yaw) * ahead;
-  const fz = state.z + Math.cos(state.yaw) * ahead;
-  const hy = heightAt(fx, fz) - y;
-  state.tank.root.rotation.x = THREE.MathUtils.clamp(-Math.atan2(hy, ahead), -0.25, 0.25);
+  const { length, width } = trackContact(state.tank.type);
+  const pose = seatOnTerrain(state.tank.root, state.x, state.z, state.yaw, length, width);
+  state.pitch = pose.pitch;
+  state.roll = pose.roll;
   // Turret yaw is relative to the hull — independent traverse
   state.tank.turret.rotation.y = state.turretYaw;
   state.tank.barrelPivot.rotation.x = state.barrelPitch;

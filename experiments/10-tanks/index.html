@@ -25,11 +25,12 @@
       <p class="kicker"><a href="../../">Experiments</a> · 10</p>
       <h1>Tanks</h1>
       <p class="lede">
-        Quest 3 VR tank commander. Pick a procedural tank, drive over rolling
-        grassy hills, switch between the cockpit and a chase view, swing the
-        turret, and fire on wandering AI tanks. A radar in the corner keeps
-        them spotted. Scoring and return fire can come later — this is the
-        simulator core.
+        Quest 3 VR tank commander. Pick a procedural tank and drive rolling
+        grassy hills — the hull sits on the slope under the tracks. In the
+        cockpit an amber sight marks where the gun is pointed, with bullseye
+        targets on the range ahead and a red diamond over each enemy tank.
+        Switch to a chase view, swing the turret, and fire. A radar in the
+        corner keeps the tanks spotted.
       </p>
       <form id="settings">
         <div class="option-list">
@@ -47,7 +48,7 @@
           <div class="option">
             <label class="option-copy" for="view">
               Starting view
-              <small>Cockpit sits inside; chase floats behind.</small>
+              <small>Cockpit is the hatch, with the gun sight. Chase floats behind.</small>
             </label>
             <select id="view" name="view">
               <option value="cockpit" selected>Cockpit</option>
@@ -100,6 +101,10 @@
           <li class="control">
             <b>A or X</b>
             <span>Toggle cockpit and third-person chase view.</span>
+          </li>
+          <li class="control">
+            <b>Sight</b>
+            <span>Cockpit only. The amber target rides on the gun, so traverse and elevation walk it onto a bullseye or an enemy diamond.</span>
           </li>
           <li class="control">
             <b>Radar</b>

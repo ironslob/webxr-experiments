@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { createTank, setTankViewMode, TANK_TYPES } from "./tanks.js";
-import { createTerrain, heightAt, clampToMap, randomMapPoint } from "./terrain.js";
+import { createRangeTarget, createTank, setTankViewMode, TANK_TYPES, trackContact } from "./tanks.js";
+import { createTerrain, heightAt, clampToMap, randomMapPoint, seatOnTerrain } from "./terrain.js";
 import {
   spawnShell,
   stepShells,
@@ -19,6 +19,14 @@ const PRIMARY_BUTTON = 4;
 const STICK_DEADZONE = 0.15;
 const CANNON_COOLDOWN = 0.85;
 const MG_COOLDOWN = 0.09;
+// local-floor looks down -Z. Hull forward is local +Z, so π puts the gun,
+// the sight, and the range in front of the headset when the session starts.
+const SPAWN_YAW = Math.PI;
+const RANGE_LAYOUT = [
+  { dist: 18, side: 0, size: 3.6 },
+  { dist: 36, side: -10, size: 4.4 },
+  { dist: 54, side: 12, size: 5 },
+];
 
 const setup = document.querySelector("#setup");
 const form = document.querySelector("#settings");
@@ -77,6 +85,7 @@ let enemies = [];
 let shells = [];
 let flashes = [];
 let radar = null;
+let rangeTargets = [];
 let viewMode = "cockpit";
 let enemyCount = 6;
 let ending = false;
@@ -252,12 +261,15 @@ function bootWorld() {
     pendingType: typeId,
     x: 0,
     z: 0,
-    yaw: 0,
+    yaw: SPAWN_YAW,
     turretYaw: 0,
     barrelPitch: -0.05,
     speed: 0,
+    pitch: 0,
+    roll: 0,
   };
   syncPlayerTank();
+  rangeTargets = spawnRangeTargets();
 
   enemies = [];
   for (let i = 0; i < enemyCount; i += 1) {
@@ -297,6 +309,30 @@ function spawnEnemy(id, index = 0, total = 1) {
   enemies.push(state);
 }
 
+function rangeOffset(dist, side) {
+  const fx = Math.sin(SPAWN_YAW);
+  const fz = Math.cos(SPAWN_YAW);
+  const rx = Math.cos(SPAWN_YAW);
+  const rz = -Math.sin(SPAWN_YAW);
+  return { x: fx * dist + rx * side, z: fz * dist + rz * side };
+}
+
+function spawnRangeTargets() {
+  return RANGE_LAYOUT.map((spec, index) => {
+    const at = rangeOffset(spec.dist, spec.side);
+    const built = createRangeTarget({ x: at.x, z: at.z, size: spec.size });
+    world.add(built.group);
+    return {
+      id: `range-${index}`,
+      group: built.group,
+      board: built.board,
+      hitRadius: built.hitRadius,
+      alive: true,
+      flash: 0,
+    };
+  });
+}
+
 function teardownWorld() {
   while (world.children.length) {
     world.remove(world.children[0]);
@@ -308,6 +344,7 @@ function teardownWorld() {
   terrain = null;
   player = null;
   enemies = [];
+  rangeTargets = [];
   shells = [];
   flashes = [];
   world.position.set(0, 0, 0);
@@ -421,6 +458,8 @@ function stepGame(frame, dt, now) {
 
   for (const enemy of enemies) {
     stepEnemy(enemy, dt, now);
+    const diamond = enemy.tank.targetMarker?.getObjectByName("target-diamond");
+    if (diamond && enemy.alive) diamond.rotation.y += dt * 1.4;
   }
 
   stepShells(shells, dt);
@@ -432,14 +471,36 @@ function stepGame(frame, dt, now) {
       hitRadius: e.tank.type.hitRadius,
       alive: e.alive,
     }));
+  for (const range of rangeTargets) {
+    targets.push({
+      id: range.id,
+      position: range.group.position,
+      hitRadius: range.hitRadius,
+      alive: true,
+    });
+  }
 
   const hits = resolveHits(shells, targets);
   for (const hit of hits) {
     const enemy = enemies.find((e) => e.id === hit.targetId);
-    if (!enemy) continue;
-    flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone(), hit.shell.kind));
-    // Cannon one-shots; MG chips until dead via repeated hits (same kill for now)
-    killEnemy(enemy, now, 4.5);
+    if (enemy) {
+      flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone(), hit.shell.kind));
+      // Cannon one-shots; MG chips until dead via repeated hits (same kill for now)
+      killEnemy(enemy, now, 4.5);
+      continue;
+    }
+    const range = rangeTargets.find((t) => t.id === hit.targetId);
+    if (!range) continue;
+    range.flash = 0.45;
+    flashes.push(spawnHitFlash(world, range.group.position.clone(), hit.shell.kind));
+  }
+
+  for (const range of rangeTargets) {
+    if (range.flash <= 0) continue;
+    range.flash = Math.max(0, range.flash - dt);
+    if (range.flash < 0.001) range.flash = 0;
+    const k = range.flash / 0.45;
+    range.board.material.color.setRGB(1, 1 - 0.25 * k, 1 - 0.55 * k);
   }
 
   // Ground impact for shells
@@ -467,16 +528,10 @@ function stepGame(frame, dt, now) {
 }
 
 function syncPlayerTank() {
-  const y = heightAt(playerState.x, playerState.z);
-  player.root.position.set(playerState.x, y, playerState.z);
-  player.root.rotation.y = playerState.yaw;
-
-  const ahead = 1.4;
-  const fx = playerState.x + Math.sin(playerState.yaw) * ahead;
-  const fz = playerState.z + Math.cos(playerState.yaw) * ahead;
-  const hy = heightAt(fx, fz) - y;
-  player.root.rotation.x = THREE.MathUtils.clamp(-Math.atan2(hy, ahead), -0.25, 0.25);
-
+  const { length, width } = trackContact(player.type);
+  const pose = seatOnTerrain(player.root, playerState.x, playerState.z, playerState.yaw, length, width);
+  playerState.pitch = pose.pitch;
+  playerState.roll = pose.roll;
   player.turret.rotation.y = playerState.turretYaw;
   player.barrelPivot.rotation.x = playerState.barrelPitch;
 }
@@ -512,6 +567,13 @@ window.__tanksDebug = () => ({
   hullYaw: playerState?.yaw ?? null,
   turretYaw: playerState?.turretYaw ?? null,
   barrelPitch: playerState?.barrelPitch ?? null,
+  x: playerState?.x ?? null,
+  z: playerState?.z ?? null,
+  pitch: playerState?.pitch ?? null,
+  roll: playerState?.roll ?? null,
+  aimSight: player?.aimSight?.visible ?? null,
+  contact: contactErrors(),
+  rangeTargets: rangeTargets.map((t) => ({ id: t.id, flash: t.flash })),
   shellCount: shells.length,
   shellKinds: shells.map((s) => s.kind),
   enemies: enemies.map((e) => ({
@@ -519,6 +581,26 @@ window.__tanksDebug = () => ({
     yaw: e.yaw,
     desiredYaw: e.desiredYaw,
     turretYaw: e.turretYaw,
+    pitch: e.pitch,
+    roll: e.roll,
     alive: e.alive,
   })),
 });
+
+function contactErrors() {
+  if (!player || !playerState) return null;
+  const { length, width } = trackContact(player.type);
+  player.root.updateWorldMatrix(true, true);
+  const pts = [
+    [-width / 2, length / 2],
+    [width / 2, length / 2],
+    [-width / 2, -length / 2],
+    [width / 2, -length / 2],
+  ];
+  return pts.map(([lx, lz]) => {
+    tmp.forward.set(lx, 0, lz);
+    player.root.localToWorld(tmp.forward);
+    const ground = heightAt(tmp.forward.x, tmp.forward.z);
+    return Number((tmp.forward.y - ground).toFixed(3));
+  });
+}

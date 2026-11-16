@@ -141,3 +141,40 @@ export function randomMapPoint(minRadius = 18, maxRadius = HALF - 15) {
   const z = Math.sin(a) * r;
   return { x, z, y: heightAt(x, z) };
 }
+
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _basis = new THREE.Matrix4();
+const _euler = new THREE.Euler();
+
+/**
+ * Sit an object on the ground under a rectangular contact patch.
+ * Yaw 0 faces +Z. Local +X is right. The bottom of the object (local y = 0)
+ * follows the pitch and roll of the terrain across `length` and `width`.
+ */
+export function seatOnTerrain(object, x, z, yaw, length, width) {
+  const halfL = length * 0.5;
+  const halfW = width * 0.5;
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  const sample = (lx, lz) => heightAt(x + cos * lx + sin * lz, z - sin * lx + cos * lz);
+
+  const fl = sample(-halfW, halfL);
+  const fr = sample(halfW, halfL);
+  const rl = sample(-halfW, -halfL);
+  const rr = sample(halfW, -halfL);
+  const y = (fl + fr + rl + rr) * 0.25;
+
+  // Vectors run rear→front and left→right across the patch, then orthonormalized.
+  _forward.set(sin * length, (fl + fr) * 0.5 - (rl + rr) * 0.5, cos * length).normalize();
+  _right.set(cos * width, (fr + rr) * 0.5 - (fl + rl) * 0.5, -sin * width).normalize();
+  _up.crossVectors(_forward, _right).normalize();
+  _right.crossVectors(_up, _forward).normalize();
+  _basis.makeBasis(_right, _up, _forward);
+
+  object.position.set(x, y, z);
+  object.quaternion.setFromRotationMatrix(_basis);
+  _euler.setFromQuaternion(object.quaternion, "YXZ");
+  return { y, yaw: _euler.y, pitch: _euler.x, roll: _euler.z };
+}
