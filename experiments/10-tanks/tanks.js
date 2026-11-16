@@ -111,22 +111,13 @@ const sightMat = {
   ink: () => new THREE.MeshBasicMaterial({ color: 0x140e08, fog: false }),
 };
 
-function createAimSight(barrelLength) {
+function createAimSight() {
   const sight = new THREE.Group();
   sight.name = "aim-sight";
   const reach = 15;
   const amber = sightMat.amber();
   const hot = sightMat.hot();
   const ink = sightMat.ink();
-
-  const laserLen = Math.max(1, reach - barrelLength - 0.4);
-  const laser = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.04, 0.04, laserLen, 6),
-    new THREE.MeshBasicMaterial({ color: 0xffc44d, transparent: true, opacity: 0.8, fog: false }),
-  );
-  laser.rotation.x = Math.PI / 2;
-  laser.position.z = barrelLength + 0.35 + laserLen * 0.5;
-  sight.add(laser);
 
   const reticle = new THREE.Group();
   reticle.position.z = reach;
@@ -148,6 +139,26 @@ function createAimSight(barrelLength) {
   reticle.add(chevron);
   sight.add(reticle);
   return sight;
+}
+
+/** Dashes just above the bore so chase view reads them as a dotted line. */
+export function createBoreLine(barrelLength) {
+  const stride = 1.45;
+  const count = 42;
+  const start = barrelLength + 0.6;
+  const geo = new THREE.BoxGeometry(0.14, 0.14, 0.38);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffc44d, fog: false });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.name = "bore-line";
+  mesh.frustumCulled = false;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    dummy.position.set(0, 0.22, start + i * stride);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  return mesh;
 }
 
 function createEnemyMarker(type) {
@@ -218,6 +229,7 @@ function mat(color, opts = {}) {
  *   cockpitSeat: THREE.Object3D,
  *   chaseSeat: THREE.Object3D,
  *   aimSight: THREE.Object3D | null,
+ *   boreLine: THREE.Object3D | null,
  *   targetMarker: THREE.Object3D | null,
  *   exterior: THREE.Object3D[],
  *   interior: THREE.Object3D[],
@@ -343,10 +355,13 @@ export function createTank(typeId, { player = false, color } = {}) {
   barrelPivot.add(mgMuzzle);
 
   let aimSight = null;
+  let boreLine = null;
   let targetMarker = null;
   if (player) {
-    aimSight = createAimSight(type.barrel.length);
+    aimSight = createAimSight();
     barrelPivot.add(aimSight);
+    boreLine = createBoreLine(type.barrel.length);
+    barrelPivot.add(boreLine);
   } else {
     targetMarker = createEnemyMarker(type);
     turret.add(targetMarker);
@@ -395,6 +410,7 @@ export function createTank(typeId, { player = false, color } = {}) {
     cockpitSeat,
     chaseSeat,
     aimSight,
+    boreLine,
     targetMarker,
     exterior,
     interior,

@@ -29,8 +29,9 @@
         grassy hills — the hull sits on the slope under the tracks. In the
         cockpit an amber sight marks where the gun is pointed, with bullseye
         targets on the range ahead and a red diamond over each enemy tank.
-        Switch to a chase view, swing the turret, and fire. A radar in the
-        corner keeps the tanks spotted.
+        The chase view stays behind the tank as you steer. A dotted line
+        along the cannon shows where a shot will go, and you can turn it off.
+        A radar in the corner keeps the tanks spotted.
       </p>
       <form id="settings">
         <div class="option-list">
@@ -48,7 +49,7 @@
           <div class="option">
             <label class="option-copy" for="view">
               Starting view
-              <small>Cockpit is the hatch, with the gun sight. Chase floats behind.</small>
+              <small>Cockpit is the hatch, with the gun sight. Chase stays behind the tank.</small>
             </label>
             <select id="view" name="view">
               <option value="cockpit" selected>Cockpit</option>
@@ -65,6 +66,13 @@
               <option value="6" selected>6</option>
               <option value="10">10</option>
             </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="bore">
+              Cannon line
+              <small>Dotted line out of the barrel. Stick click or L turns it off.</small>
+            </label>
+            <input id="bore" name="bore" type="checkbox" checked />
           </div>
           <div class="option">
             <label class="option-copy" for="dev">
@@ -100,7 +108,11 @@
           </li>
           <li class="control">
             <b>A or X</b>
-            <span>Toggle cockpit and third-person chase view.</span>
+            <span>Toggle cockpit and chase view. In VR the chase camera yaws with the hull, so the tank stays in front of you.</span>
+          </li>
+          <li class="control">
+            <b>Stick click or L</b>
+            <span>Show or hide the dotted cannon line. Either thumbstick click works in the headset. L does it in the desktop preview.</span>
           </li>
           <li class="control">
             <b>Sight</b>
@@ -120,14 +132,14 @@
           </li>
           <li class="control">
             <b>Desktop preview</b>
-            <span>WASD drive hull, arrows turn turret, Space cannon, F machine gun, V view, Esc exit.</span>
+            <span>WASD drive hull, arrows turn turret, Space cannon, F machine gun, V view, L cannon line, Esc exit.</span>
           </li>
         </ul>
       </form>
     </main>
     <div id="overlay">
       <p id="status">Starting…</p>
-      <p id="hint">B/Y exit · A/X view · Trigger cannon · Squeeze MG</p>
+      <p id="hint">B/Y exit · A/X view · Stick click line · Trigger cannon · Squeeze MG</p>
       <button id="exit" class="launch enter" type="button">Exit</button>
     </div>
     <script>
