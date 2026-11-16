@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createRangeTarget, createTank, setTankViewMode, TANK_TYPES, trackContact } from "./tanks.js";
-import { createTerrain, heightAt, clampToMap, randomMapPoint, seatOnTerrain } from "./terrain.js";
+import { createTerrain, heightAt, clampToMap, randomMapPoint, resolveScenery, seatOnTerrain } from "./terrain.js";
+import { radarMapHeading, worldYawForView } from "./view.js";
 import {
   spawnShell,
   stepShells,
@@ -37,11 +38,11 @@ const exit = document.querySelector("#exit");
 const overlay = document.querySelector("#overlay");
 const status = document.querySelector("#status");
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.domElement.classList.add("xr-view");
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x87a7c4, 1);
+renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.xr.enabled = true;
@@ -94,9 +95,12 @@ let rangeTargets = [];
 let viewMode = "cockpit";
 let enemyCount = 6;
 let boreLineOn = true;
-// Camera yaw captured when chase view opens. Steering yaws the world around
-// that heading so the tank stays centered without the world spinning as you look around.
-let chaseAnchor = null;
+let sceneryLevel = "normal";
+let radarMode = "hull";
+let rangeTargetsOn = false;
+// Headset yaw (Three.js camera yaw) captured on the first pose. Hull steering
+// yaws the world against this so the view turns with the tank body.
+let viewAnchor = null;
 let ending = false;
 let cannonCooldown = 0;
 let mgCooldown = 0;
@@ -163,15 +167,26 @@ window.addEventListener("keydown", (event) => {
 window.addEventListener("keyup", (event) => keys.delete(event.code));
 
 renderer.setAnimationLoop((time, frame) => {
+  if (!sessionActive) return;
   const dt = Math.min(clock.getDelta(), 0.05);
-  if (sessionActive) {
-    if (frame && !desktopPreview) {
-      exitFromControllers(frame);
-      stepGame(frame, dt, time * 0.001);
-    } else if (desktopPreview) {
-      stepGame(desktopInputFrame(), dt, time * 0.001);
-      updateDesktopCamera();
-    }
+  if (frame && !desktopPreview) {
+    exitFromControllers(frame);
+    stepGame(frame, dt, time * 0.001);
+  } else if (desktopPreview) {
+    stepGame(desktopInputFrame(), dt, time * 0.001);
+    updateDesktopCamera();
+  }
+  if (radar && playerState) {
+    const headYaw = !desktopPreview && frame ? viewerYaw(frame) : cameraYaw();
+    drawRadar(
+      radar,
+      {
+        x: playerState.x,
+        z: playerState.z,
+        yaw: radarMapHeading(radarMode, playerState.yaw, headYaw, world.rotation.y),
+      },
+      enemies,
+    );
   }
   renderer.render(scene, camera);
 });
@@ -183,6 +198,7 @@ function beginSession(message) {
   document.body.classList.add("stage");
   ending = false;
   sessionActive = true;
+  renderer.setClearColor(0x87a7c4, 1);
   bootWorld();
 }
 
@@ -190,6 +206,7 @@ function endSession() {
   overlay.style.display = "none";
   setup.hidden = false;
   document.body.classList.remove("stage");
+  renderer.setClearColor(0x000000, 0);
   renderer.domElement.classList.remove("preview-view");
   sessionActive = false;
   desktopPreview = false;
@@ -256,6 +273,9 @@ function applyForm() {
   viewMode = String(data.get("view") || "cockpit");
   enemyCount = Number(data.get("enemies") || 6);
   boreLineOn = Boolean(document.querySelector("#bore")?.checked);
+  sceneryLevel = resolveScenery(document.querySelector("#scenery")?.value);
+  radarMode = document.querySelector("#radar")?.value === "headset" ? "headset" : "hull";
+  rangeTargetsOn = Boolean(document.querySelector("#targets")?.checked);
   playerState = playerState || {};
   playerState.pendingType = TANK_TYPES[typeId] ? typeId : "medium";
 }
@@ -263,7 +283,7 @@ function applyForm() {
 function bootWorld() {
   teardownWorld();
 
-  terrain = createTerrain();
+  terrain = createTerrain(sceneryLevel);
   world.add(terrain);
 
   const typeId = playerState?.pendingType || "medium";
@@ -284,7 +304,7 @@ function bootWorld() {
     roll: 0,
   };
   syncPlayerTank();
-  rangeTargets = spawnRangeTargets();
+  rangeTargets = rangeTargetsOn ? spawnRangeTargets() : [];
 
   enemies = [];
   for (let i = 0; i < enemyCount; i += 1) {
@@ -365,7 +385,7 @@ function teardownWorld() {
   world.position.set(0, 0, 0);
   world.rotation.y = 0;
   sun.position.copy(SUN_BASE);
-  chaseAnchor = null;
+  viewAnchor = null;
 }
 
 function exitFromControllers(frame) {
@@ -458,10 +478,12 @@ function stepGame(frame, dt, now) {
   playerState.x = clamped.x;
   playerState.z = clamped.z;
 
-  // Independent turret traverse / elevation — does not change move direction
+  // Independent turret traverse / elevation — does not change move direction.
+  // Stick up is negative Y. Barrel pitch is a +X rotation, and +X points +Z
+  // downward, so a negative pitch raises the gun. Adding stick Y makes up raise it.
   playerState.turretYaw += -input.rightX * type.turretTurn * dt;
   playerState.barrelPitch = THREE.MathUtils.clamp(
-    playerState.barrelPitch - input.rightY * type.barrelPitch * dt,
+    playerState.barrelPitch + input.rightY * type.barrelPitch * dt,
     -0.35,
     0.2,
   );
@@ -540,15 +562,7 @@ function stepGame(frame, dt, now) {
   shells = shells.filter((s) => s.alive);
 
   stepFlashes(flashes, dt);
-  if (!desktopPreview) alignWorldToSeat();
-
-  if (radar) {
-    drawRadar(
-      radar,
-      { x: playerState.x, z: playerState.z, yaw: playerState.yaw },
-      enemies,
-    );
-  }
+  if (!desktopPreview) alignWorldToSeat(frame);
 }
 
 function syncPlayerTank() {
@@ -566,7 +580,7 @@ function firePlayerWeapon(kind) {
   tip.getWorldPosition(tmp.muzzle);
   tip.getWorldQuaternion(tmp.quat);
   tmp.dir.set(0, 0, 1).applyQuaternion(tmp.quat);
-  // Shells live in `world`, which yaws around the headset in VR chase view.
+  // Shells live in `world`, which yaws around the headset in VR so the view turns with the hull.
   world.worldToLocal(tmp.muzzle);
   const localDir = tmp.dir.clone();
   shells.push(spawnShell(world, tmp.muzzle, localDir, "player", kind));
@@ -575,6 +589,16 @@ function firePlayerWeapon(kind) {
 
 function cameraYaw() {
   yawEuler.setFromQuaternion(camera.quaternion, "YXZ");
+  return yawEuler.y;
+}
+
+function viewerYaw(frame) {
+  const space = renderer.xr.getReferenceSpace?.();
+  const pose = space && frame?.getViewerPose?.(space);
+  const o = pose?.transform?.orientation;
+  if (!o) return null;
+  tmp.quat.set(o.x, o.y, o.z, o.w);
+  yawEuler.setFromQuaternion(tmp.quat, "YXZ");
   return yawEuler.y;
 }
 
@@ -587,29 +611,15 @@ function toggleBoreLine() {
   applyBoreLine();
 }
 
-function alignWorldToSeat() {
-  if (viewMode !== "chase") {
-    world.rotation.y = 0;
-    chaseAnchor = null;
-  } else {
-    // Lock the heading from when chase view opened. Further tank yaw orbits
-    // the world around the headset so the hull stays in front of that view.
-    if (chaseAnchor == null) chaseAnchor = cameraYaw();
-    world.rotation.y = 0;
-    world.updateMatrixWorld(true);
-    player.chaseSeat.getWorldPosition(tmp.seat);
-    player.root.getWorldPosition(tmp.forward);
-    tmp.forward.sub(tmp.seat);
-    tmp.forward.y = 0;
-    if (tmp.forward.lengthSq() > 1e-6) {
-      const current = Math.atan2(tmp.forward.x, tmp.forward.z);
-      const desired = Math.atan2(-Math.sin(chaseAnchor), -Math.cos(chaseAnchor));
-      let delta = desired - current;
-      while (delta > Math.PI) delta -= Math.PI * 2;
-      while (delta < -Math.PI) delta += Math.PI * 2;
-      world.rotation.y = delta;
-    }
-  }
+function alignWorldToSeat(frame) {
+  const headYaw = viewerYaw(frame);
+  if (headYaw == null) return;
+  if (viewAnchor == null) viewAnchor = headYaw;
+  // Copy this frame's pose onto the scene camera before seating the world on it.
+  // The renderer's own update happens after this callback.
+  renderer.xr.updateCamera(camera);
+
+  world.rotation.y = worldYawForView(viewAnchor, playerState.yaw);
   sun.position.copy(SUN_BASE).applyAxisAngle(Y_AXIS, world.rotation.y);
 
   const seat = viewMode === "cockpit" ? player.cockpitSeat : player.chaseSeat;
@@ -635,7 +645,11 @@ window.__tanksDebug = () => ({
   aimSight: player?.aimSight?.visible ?? null,
   boreLine: player?.boreLine?.visible ?? null,
   worldYaw: world.rotation.y,
-  chaseAnchor,
+  lookYaw: cameraYaw(),
+  viewAnchor,
+  radarMode,
+  sceneryLevel,
+  props: terrain?.userData?.props ?? null,
   contact: contactErrors(),
   rangeTargets: rangeTargets.map((t) => ({ id: t.id, flash: t.flash })),
   shellCount: shells.length,
