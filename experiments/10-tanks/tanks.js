@@ -178,6 +178,20 @@ export function createTank(typeId, { player = false, color } = {}) {
   muzzle.position.z = type.barrel.length + 0.15;
   barrelPivot.add(muzzle);
 
+  // Coaxial machine gun beside the main barrel
+  const mg = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.04, type.barrel.length * 0.55, 8),
+    darkMat,
+  );
+  mg.rotation.x = Math.PI / 2;
+  mg.position.set(type.barrel.radius + 0.12, -0.05, type.barrel.length * 0.28);
+  barrelPivot.add(mg);
+  exterior.push(mg);
+
+  const mgMuzzle = new THREE.Object3D();
+  mgMuzzle.position.set(type.barrel.radius + 0.12, -0.05, type.barrel.length * 0.55 + 0.05);
+  barrelPivot.add(mgMuzzle);
+
   // Interior — visible mainly in cockpit view
   const cabin = new THREE.Mesh(
     new THREE.BoxGeometry(W * 0.55, H * 0.7, L * 0.35),
@@ -202,10 +216,11 @@ export function createTank(typeId, { player = false, color } = {}) {
   turret.add(periscope);
   interior.push(periscope);
 
-  // Commander cupola seat (local to turret): just above the ring, over the gun.
+  // Hatch seat on the hull: hull steer turns you with the tracks; turret/gun
+  // traverse independently in front of you (true tank-style separation).
   const cockpitSeat = new THREE.Object3D();
-  cockpitSeat.position.set(0, type.turret.height + 0.55, -0.15);
-  turret.add(cockpitSeat);
+  cockpitSeat.position.set(0, trackH + H + type.turret.height + 0.4, -0.35);
+  root.add(cockpitSeat);
 
   const chaseSeat = new THREE.Object3D();
   chaseSeat.position.set(0, 4.2, -9.5);
@@ -216,6 +231,7 @@ export function createTank(typeId, { player = false, color } = {}) {
     turret,
     barrelPivot,
     muzzle,
+    mgMuzzle,
     cockpitSeat,
     chaseSeat,
     exterior,

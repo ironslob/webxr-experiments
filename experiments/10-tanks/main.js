@@ -6,6 +6,7 @@ import {
   stepShells,
   resolveHits,
   spawnHitFlash,
+  spawnMuzzleFlash,
   stepFlashes,
 } from "./combat.js";
 import { createEnemyState, placeTankOnTerrain, stepEnemy, killEnemy } from "./ai.js";
@@ -13,8 +14,11 @@ import { createRadar, drawRadar } from "./radar.js";
 
 const SECONDARY_BUTTON = 5;
 const TRIGGER_BUTTON = 0;
+const SQUEEZE_BUTTON = 1;
 const PRIMARY_BUTTON = 4;
 const STICK_DEADZONE = 0.15;
+const CANNON_COOLDOWN = 0.85;
+const MG_COOLDOWN = 0.09;
 
 const setup = document.querySelector("#setup");
 const form = document.querySelector("#settings");
@@ -76,7 +80,8 @@ let radar = null;
 let viewMode = "cockpit";
 let enemyCount = 6;
 let ending = false;
-let fireCooldown = 0;
+let cannonCooldown = 0;
+let mgCooldown = 0;
 let prevPrimary = false;
 let prevTrigger = false;
 let sessionActive = false;
@@ -176,7 +181,7 @@ function startDesktopPreview(message) {
   desktopPreview = true;
   note.textContent = message;
   renderer.domElement.classList.add("preview-view");
-  beginSession("Desktop preview — WASD drive, arrows aim, Space fire, V view, Esc exit");
+  beginSession("Desktop preview — WASD hull, arrows turret, Space cannon, F MG, V view, Esc exit");
   camera.position.set(0, 1.6, 0);
   camera.rotation.set(0, 0, 0);
 }
@@ -206,8 +211,14 @@ function updateDesktopCamera() {
       player.root.position.z,
     );
   } else {
-    player.muzzle.getWorldPosition(tmp.muzzle);
-    camera.lookAt(tmp.muzzle.x, tmp.muzzle.y + 0.2, tmp.muzzle.z);
+    // Look hull-forward so right-stick turret traverse is visible across the view
+    // (looking at the muzzle would keep the barrel glued to screen center).
+    const lookDist = 50;
+    camera.lookAt(
+      playerState.x + Math.sin(playerState.yaw) * lookDist,
+      tmp.seat.y - 0.4,
+      playerState.z + Math.cos(playerState.yaw) * lookDist,
+    );
   }
 }
 
@@ -250,12 +261,13 @@ function bootWorld() {
 
   enemies = [];
   for (let i = 0; i < enemyCount; i += 1) {
-    spawnEnemy(`enemy-${i}`);
+    spawnEnemy(`enemy-${i}`, i, enemyCount);
   }
 
   shells = [];
   flashes = [];
-  fireCooldown = 0;
+  cannonCooldown = 0;
+  mgCooldown = 0;
   prevPrimary = false;
   prevTrigger = false;
 
@@ -263,17 +275,24 @@ function bootWorld() {
   camera.add(radar.mesh);
 }
 
-function spawnEnemy(id) {
+function spawnEnemy(id, index = 0, total = 1) {
   const typeIds = Object.keys(TANK_TYPES);
   const typeId = typeIds[(Math.random() * typeIds.length) | 0];
-  const tank = createTank(typeId, { player: false });
+  // Distinct drab paints so enemies read apart from the player
+  const paints = [0x5a4e32, 0x3f4a38, 0x6a5b3c, 0x4a5538, 0x58503a, 0x3a4834];
+  const tank = createTank(typeId, { player: false, color: paints[index % paints.length] });
   world.add(tank.root);
   const spawn = randomMapPoint(28, 95);
-  const state = createEnemyState(id, tank, {
-    x: spawn.x,
-    z: spawn.z,
-    yaw: Math.random() * Math.PI * 2,
-  });
+  // Spread initial headings around the compass so they don't look parallel
+  const yaw = (index / Math.max(total, 1)) * Math.PI * 2 + (Math.random() - 0.5) * 0.7;
+  const state = createEnemyState(
+    id,
+    tank,
+    { x: spawn.x, z: spawn.z, yaw },
+    performance.now() * 0.001,
+  );
+  // Stagger first turn so they don't all reorient together
+  state.nextTurnAt = state.nextTurnAt + index * 2.5;
   placeTankOnTerrain(state);
   enemies.push(state);
 }
@@ -313,6 +332,7 @@ function readSticks(frame) {
       rightX: (keys.has("ArrowRight") ? 1 : 0) - (keys.has("ArrowLeft") ? 1 : 0),
       rightY: (keys.has("ArrowDown") ? 1 : 0) - (keys.has("ArrowUp") ? 1 : 0),
       trigger: keys.has("Space"),
+      squeeze: keys.has("KeyF"),
       primary: false, // toggled via KeyV in keydown
     };
   }
@@ -322,6 +342,7 @@ function readSticks(frame) {
   let rightX = 0;
   let rightY = 0;
   let trigger = false;
+  let squeeze = false;
   let primary = false;
 
   for (const source of frame.session.inputSources) {
@@ -343,10 +364,11 @@ function readSticks(frame) {
     }
 
     if (pad.buttons[TRIGGER_BUTTON]?.pressed) trigger = true;
+    if (pad.buttons[SQUEEZE_BUTTON]?.pressed) squeeze = true;
     if (pad.buttons[PRIMARY_BUTTON]?.pressed) primary = true;
   }
 
-  return { leftX, leftY, rightX, rightY, trigger, primary };
+  return { leftX, leftY, rightX, rightY, trigger, squeeze, primary };
 }
 
 function stepGame(frame, dt, now) {
@@ -360,7 +382,7 @@ function stepGame(frame, dt, now) {
   }
   prevPrimary = input.primary;
 
-  // Drive: left stick Y throttle (forward is negative on Quest), X steer
+  // Hull only: left stick drives the tracks. Turret aim is separate (right stick).
   const throttle = -input.leftY;
   const steer = -input.leftX;
   const type = player.type;
@@ -375,6 +397,7 @@ function stepGame(frame, dt, now) {
   playerState.x = clamped.x;
   playerState.z = clamped.z;
 
+  // Independent turret traverse / elevation — does not change move direction
   playerState.turretYaw += -input.rightX * type.turretTurn * dt;
   playerState.barrelPitch = THREE.MathUtils.clamp(
     playerState.barrelPitch - input.rightY * type.barrelPitch * dt,
@@ -384,10 +407,15 @@ function stepGame(frame, dt, now) {
 
   syncPlayerTank();
 
-  fireCooldown = Math.max(0, fireCooldown - dt);
-  if (input.trigger && !prevTrigger && fireCooldown <= 0) {
-    firePlayerShell();
-    fireCooldown = 0.55;
+  cannonCooldown = Math.max(0, cannonCooldown - dt);
+  mgCooldown = Math.max(0, mgCooldown - dt);
+  if (input.trigger && !prevTrigger && cannonCooldown <= 0) {
+    firePlayerWeapon("cannon");
+    cannonCooldown = CANNON_COOLDOWN;
+  }
+  if (input.squeeze && mgCooldown <= 0) {
+    firePlayerWeapon("mg");
+    mgCooldown = MG_COOLDOWN;
   }
   prevTrigger = input.trigger;
 
@@ -409,7 +437,8 @@ function stepGame(frame, dt, now) {
   for (const hit of hits) {
     const enemy = enemies.find((e) => e.id === hit.targetId);
     if (!enemy) continue;
-    flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone()));
+    flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone(), hit.shell.kind));
+    // Cannon one-shots; MG chips until dead via repeated hits (same kill for now)
     killEnemy(enemy, now, 4.5);
   }
 
@@ -418,7 +447,7 @@ function stepGame(frame, dt, now) {
     if (!shell.alive) continue;
     const p = shell.mesh.position;
     if (p.y < heightAt(p.x, p.z) + 0.1) {
-      flashes.push(spawnHitFlash(world, p.clone()));
+      flashes.push(spawnHitFlash(world, p.clone(), shell.kind));
       shell.alive = false;
       shell.mesh.removeFromParent();
     }
@@ -452,17 +481,17 @@ function syncPlayerTank() {
   player.barrelPivot.rotation.x = playerState.barrelPitch;
 }
 
-function firePlayerShell() {
-  player.muzzle.getWorldPosition(tmp.muzzle);
-  player.muzzle.getWorldQuaternion(tmp.quat);
+function firePlayerWeapon(kind) {
+  const tip = kind === "mg" ? player.mgMuzzle : player.muzzle;
+  tip.updateWorldMatrix(true, false);
+  tip.getWorldPosition(tmp.muzzle);
+  tip.getWorldQuaternion(tmp.quat);
   tmp.dir.set(0, 0, 1).applyQuaternion(tmp.quat);
-  // Convert world (scene) muzzle to logical world coords:
-  // muzzle is already under `world`, so subtract world.position for logical? 
-  // Shells are parented to `world`, so use position in world-local space.
+  // Shells are parented to `world` (translation only in VR seat mode)
   world.worldToLocal(tmp.muzzle);
   const localDir = tmp.dir.clone();
-  // Direction is in scene space; world has no rotation, only translation
-  shells.push(spawnShell(world, tmp.muzzle, localDir, "player"));
+  shells.push(spawnShell(world, tmp.muzzle, localDir, "player", kind));
+  flashes.push(spawnMuzzleFlash(world, tmp.muzzle.clone(), localDir, kind));
 }
 
 function alignWorldToSeat() {
@@ -474,3 +503,22 @@ function alignWorldToSeat() {
   world.position.y += cam.y - tmp.seat.y;
   world.position.z += cam.z - tmp.seat.z;
 }
+
+// Desktop/dev introspection for automated checks
+window.__tanksDebug = () => ({
+  viewMode,
+  desktopPreview,
+  sessionActive,
+  hullYaw: playerState?.yaw ?? null,
+  turretYaw: playerState?.turretYaw ?? null,
+  barrelPitch: playerState?.barrelPitch ?? null,
+  shellCount: shells.length,
+  shellKinds: shells.map((s) => s.kind),
+  enemies: enemies.map((e) => ({
+    id: e.id,
+    yaw: e.yaw,
+    desiredYaw: e.desiredYaw,
+    turretYaw: e.turretYaw,
+    alive: e.alive,
+  })),
+});

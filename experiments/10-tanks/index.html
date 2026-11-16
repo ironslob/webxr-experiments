@@ -73,6 +73,8 @@
             <input id="dev" name="dev" type="checkbox" />
           </div>
         </div>
+        <button id="enter" class="launch" type="button">Enter VR</button>
+        <p class="note" id="note">The controls below are the ones inside the headset.</p>
         <h2 class="controls-title">Controls</h2>
         <ul class="controls">
           <li class="control">
@@ -81,15 +83,19 @@
           </li>
           <li class="control">
             <b>Left stick</b>
-            <span>Drive — push forward/back for throttle, left/right to steer the hull.</span>
+            <span>Drive the hull only — throttle and steer. Movement follows the tracks, not the turret.</span>
           </li>
           <li class="control">
             <b>Right stick</b>
-            <span>Aim — yaw the turret and pitch the barrel.</span>
+            <span>Traverse the turret and elevate the gun independently of the hull.</span>
           </li>
           <li class="control">
             <b>Trigger</b>
-            <span>Fire a shell from the barrel.</span>
+            <span>Fire the main cannon.</span>
+          </li>
+          <li class="control">
+            <b>Squeeze</b>
+            <span>Hold to fire the coaxial machine gun.</span>
           </li>
           <li class="control">
             <b>A or X</b>
@@ -109,16 +115,14 @@
           </li>
           <li class="control">
             <b>Desktop preview</b>
-            <span>WASD drive, arrow keys aim, Space fire, V toggle view, Esc exit.</span>
+            <span>WASD drive hull, arrows turn turret, Space cannon, F machine gun, V view, Esc exit.</span>
           </li>
         </ul>
-        <button id="enter" class="launch" type="button">Enter VR</button>
-        <p class="note" id="note">The controls above are the ones inside the headset.</p>
       </form>
     </main>
     <div id="overlay">
       <p id="status">Starting…</p>
-      <p id="hint">B or Y exits · A/X toggles view</p>
+      <p id="hint">B/Y exit · A/X view · Trigger cannon · Squeeze MG</p>
       <button id="exit" class="launch enter" type="button">Exit</button>
     </div>
     <script>
