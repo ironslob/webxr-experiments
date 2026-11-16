@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { heightAt } from "./terrain.js";
 
 export const TANK_TYPES = {
   light: {
@@ -51,6 +52,164 @@ export function randomTankType() {
   return TYPE_IDS[(Math.random() * TYPE_IDS.length) | 0];
 }
 
+/** Track contact patch: length along the hull, width across the track centerlines. */
+export function trackContact(type) {
+  return {
+    length: type.hull.length * 0.92,
+    width: type.hull.width * 0.84,
+  };
+}
+
+let bullseyeMap = null;
+
+export function bullseyeTexture() {
+  if (bullseyeMap) return bullseyeMap;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#f4f0e4";
+  ctx.fillRect(0, 0, 512, 512);
+  const rings = [
+    ["#1a140f", 230],
+    ["#f4f0e4", 190],
+    ["#d01212", 150],
+    ["#f4f0e4", 110],
+    ["#1a140f", 72],
+    ["#f0c014", 34],
+  ];
+  for (const [color, radius] of rings) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(256, 256, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "#ffb000";
+  ctx.lineWidth = 14;
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  ctx.moveTo(256, 148);
+  ctx.lineTo(256, 214);
+  ctx.moveTo(256, 298);
+  ctx.lineTo(256, 364);
+  ctx.moveTo(148, 256);
+  ctx.lineTo(214, 256);
+  ctx.moveTo(298, 256);
+  ctx.lineTo(364, 256);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  bullseyeMap = tex;
+  return tex;
+}
+
+const sightMat = {
+  amber: () => new THREE.MeshBasicMaterial({ color: 0xffc44d, fog: false }),
+  hot: () => new THREE.MeshBasicMaterial({ color: 0xfff4cc, fog: false }),
+  ink: () => new THREE.MeshBasicMaterial({ color: 0x140e08, fog: false }),
+};
+
+function createAimSight() {
+  const sight = new THREE.Group();
+  sight.name = "aim-sight";
+  const reach = 15;
+  const amber = sightMat.amber();
+  const hot = sightMat.hot();
+  const ink = sightMat.ink();
+
+  const reticle = new THREE.Group();
+  reticle.position.z = reach;
+  reticle.add(new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.09, 8, 28), ink));
+  reticle.add(new THREE.Mesh(new THREE.TorusGeometry(1.02, 0.045, 8, 28), amber));
+  reticle.add(new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.03, 8, 20), amber));
+
+  const tickGeo = new THREE.BoxGeometry(0.07, 0.72, 0.05);
+  for (let i = 0; i < 4; i += 1) {
+    const tick = new THREE.Mesh(tickGeo, amber);
+    const angle = (i * Math.PI) / 2;
+    tick.position.set(Math.cos(angle) * 0.78, Math.sin(angle) * 0.78, 0);
+    tick.rotation.z = angle - Math.PI / 2;
+    reticle.add(tick);
+  }
+
+  const chevron = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.32, 3), hot);
+  chevron.position.y = 1.32;
+  reticle.add(chevron);
+  sight.add(reticle);
+  return sight;
+}
+
+/** Dashes just above the bore so chase view reads them as a dotted line. */
+export function createBoreLine(barrelLength) {
+  const stride = 1.45;
+  const count = 42;
+  const start = barrelLength + 0.6;
+  const geo = new THREE.BoxGeometry(0.14, 0.14, 0.38);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffc44d, fog: false });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.name = "bore-line";
+  mesh.frustumCulled = false;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    dummy.position.set(0, 0.22, start + i * stride);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  return mesh;
+}
+
+function createEnemyMarker(type) {
+  const marker = new THREE.Group();
+  marker.name = "target-marker";
+  const color = new THREE.MeshBasicMaterial({ color: 0xff4d3a, fog: false });
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.85, 5), color);
+  pole.position.y = type.turret.height + 0.55;
+  const diamond = new THREE.Mesh(new THREE.OctahedronGeometry(0.55, 0), color);
+  diamond.position.y = type.turret.height + 1.35;
+  diamond.name = "target-diamond";
+  marker.add(pole, diamond);
+  return marker;
+}
+
+/**
+ * Upright bullseye standing on the terrain, facing the origin.
+ * Group origin is the board center so shots can test that point.
+ */
+export function createRangeTarget({ x, z, size }) {
+  const ground = heightAt(x, z);
+  const lift = size * 0.62;
+  const group = new THREE.Group();
+  group.name = "range-target";
+  group.position.set(x, ground + lift, z);
+  group.rotation.y = Math.atan2(-x, -z);
+
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(size, size),
+    new THREE.MeshBasicMaterial({ map: bullseyeTexture(), side: THREE.DoubleSide }),
+  );
+  board.name = "board";
+  const frame = new THREE.Mesh(
+    new THREE.PlaneGeometry(size * 1.1, size * 1.1),
+    new THREE.MeshBasicMaterial({ color: 0x1c140e, side: THREE.DoubleSide }),
+  );
+  frame.position.z = -0.05;
+  group.add(frame, board);
+
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x2c2418, roughness: 0.9 });
+  const postGeo = new THREE.CylinderGeometry(0.08, 0.1, lift, 6);
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(postGeo, postMat);
+    post.position.set(side * size * 0.34, -lift * 0.5, -0.1);
+    post.castShadow = true;
+    group.add(post);
+  }
+
+  return { group, board, hitRadius: size * 0.5 };
+}
+
 function mat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
     color,
@@ -69,6 +228,9 @@ function mat(color, opts = {}) {
  *   muzzle: THREE.Object3D,
  *   cockpitSeat: THREE.Object3D,
  *   chaseSeat: THREE.Object3D,
+ *   aimSight: THREE.Object3D | null,
+ *   boreLine: THREE.Object3D | null,
+ *   targetMarker: THREE.Object3D | null,
  *   exterior: THREE.Object3D[],
  *   interior: THREE.Object3D[],
  *   type: object,
@@ -192,6 +354,19 @@ export function createTank(typeId, { player = false, color } = {}) {
   mgMuzzle.position.set(type.barrel.radius + 0.12, -0.05, type.barrel.length * 0.55 + 0.05);
   barrelPivot.add(mgMuzzle);
 
+  let aimSight = null;
+  let boreLine = null;
+  let targetMarker = null;
+  if (player) {
+    aimSight = createAimSight();
+    barrelPivot.add(aimSight);
+    boreLine = createBoreLine(type.barrel.length);
+    barrelPivot.add(boreLine);
+  } else {
+    targetMarker = createEnemyMarker(type);
+    turret.add(targetMarker);
+  }
+
   // Interior — visible mainly in cockpit view
   const cabin = new THREE.Mesh(
     new THREE.BoxGeometry(W * 0.55, H * 0.7, L * 0.35),
@@ -234,6 +409,9 @@ export function createTank(typeId, { player = false, color } = {}) {
     mgMuzzle,
     cockpitSeat,
     chaseSeat,
+    aimSight,
+    boreLine,
+    targetMarker,
     exterior,
     interior,
     type,
@@ -251,4 +429,5 @@ export function setTankViewMode(tank, mode) {
   for (const mesh of tank.interior) {
     mesh.visible = true;
   }
+  if (tank.aimSight) tank.aimSight.visible = cockpit;
 }

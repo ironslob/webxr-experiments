@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { createTank, setTankViewMode, TANK_TYPES } from "./tanks.js";
-import { createTerrain, heightAt, clampToMap, randomMapPoint } from "./terrain.js";
+import { createRangeTarget, createTank, setTankViewMode, TANK_TYPES, trackContact } from "./tanks.js";
+import { createTerrain, heightAt, clampToMap, randomMapPoint, seatOnTerrain } from "./terrain.js";
 import {
   spawnShell,
   stepShells,
@@ -16,9 +16,18 @@ const SECONDARY_BUTTON = 5;
 const TRIGGER_BUTTON = 0;
 const SQUEEZE_BUTTON = 1;
 const PRIMARY_BUTTON = 4;
+const STICK_BUTTON = 3;
 const STICK_DEADZONE = 0.15;
 const CANNON_COOLDOWN = 0.85;
 const MG_COOLDOWN = 0.09;
+// local-floor looks down -Z. Hull forward is local +Z, so π puts the gun,
+// the sight, and the range in front of the headset when the session starts.
+const SPAWN_YAW = Math.PI;
+const RANGE_LAYOUT = [
+  { dist: 18, side: 0, size: 3.6 },
+  { dist: 36, side: -10, size: 4.4 },
+  { dist: 54, side: 12, size: 5 },
+];
 
 const setup = document.querySelector("#setup");
 const form = document.querySelector("#settings");
@@ -61,6 +70,10 @@ scene.add(sun);
 const world = new THREE.Group();
 scene.add(world);
 
+const SUN_BASE = new THREE.Vector3(40, 60, 20);
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const yawEuler = new THREE.Euler(0, 0, 0, "YXZ");
+
 const clock = new THREE.Clock();
 const tmp = {
   seat: new THREE.Vector3(),
@@ -77,13 +90,19 @@ let enemies = [];
 let shells = [];
 let flashes = [];
 let radar = null;
+let rangeTargets = [];
 let viewMode = "cockpit";
 let enemyCount = 6;
+let boreLineOn = true;
+// Camera yaw captured when chase view opens. Steering yaws the world around
+// that heading so the tank stays centered without the world spinning as you look around.
+let chaseAnchor = null;
 let ending = false;
 let cannonCooldown = 0;
 let mgCooldown = 0;
 let prevPrimary = false;
 let prevTrigger = false;
+let prevStickClick = false;
 let sessionActive = false;
 
 const sky = new THREE.Mesh(
@@ -138,6 +157,7 @@ window.addEventListener("keydown", (event) => {
     viewMode = viewMode === "cockpit" ? "chase" : "cockpit";
     if (player) setTankViewMode(player, viewMode);
   }
+  if (event.code === "KeyL" && !event.repeat) toggleBoreLine();
   if (event.code === "Escape") stopDesktopPreview();
 });
 window.addEventListener("keyup", (event) => keys.delete(event.code));
@@ -181,7 +201,7 @@ function startDesktopPreview(message) {
   desktopPreview = true;
   note.textContent = message;
   renderer.domElement.classList.add("preview-view");
-  beginSession("Desktop preview — WASD hull, arrows turret, Space cannon, F MG, V view, Esc exit");
+  beginSession("Desktop preview — WASD hull, arrows turret, Space cannon, F MG, V view, L line, Esc exit");
   camera.position.set(0, 1.6, 0);
   camera.rotation.set(0, 0, 0);
 }
@@ -200,6 +220,8 @@ function desktopInputFrame() {
 function updateDesktopCamera() {
   if (!player) return;
   world.position.set(0, 0, 0);
+  world.rotation.y = 0;
+  sun.position.copy(SUN_BASE);
   const seat = viewMode === "cockpit" ? player.cockpitSeat : player.chaseSeat;
   seat.updateWorldMatrix(true, false);
   seat.getWorldPosition(tmp.seat);
@@ -233,6 +255,7 @@ function applyForm() {
   const typeId = String(data.get("tank") || "medium");
   viewMode = String(data.get("view") || "cockpit");
   enemyCount = Number(data.get("enemies") || 6);
+  boreLineOn = Boolean(document.querySelector("#bore")?.checked);
   playerState = playerState || {};
   playerState.pendingType = TANK_TYPES[typeId] ? typeId : "medium";
 }
@@ -247,17 +270,21 @@ function bootWorld() {
   player = createTank(typeId, { player: true });
   world.add(player.root);
   setTankViewMode(player, viewMode);
+  applyBoreLine();
 
   playerState = {
     pendingType: typeId,
     x: 0,
     z: 0,
-    yaw: 0,
+    yaw: SPAWN_YAW,
     turretYaw: 0,
     barrelPitch: -0.05,
     speed: 0,
+    pitch: 0,
+    roll: 0,
   };
   syncPlayerTank();
+  rangeTargets = spawnRangeTargets();
 
   enemies = [];
   for (let i = 0; i < enemyCount; i += 1) {
@@ -297,6 +324,30 @@ function spawnEnemy(id, index = 0, total = 1) {
   enemies.push(state);
 }
 
+function rangeOffset(dist, side) {
+  const fx = Math.sin(SPAWN_YAW);
+  const fz = Math.cos(SPAWN_YAW);
+  const rx = Math.cos(SPAWN_YAW);
+  const rz = -Math.sin(SPAWN_YAW);
+  return { x: fx * dist + rx * side, z: fz * dist + rz * side };
+}
+
+function spawnRangeTargets() {
+  return RANGE_LAYOUT.map((spec, index) => {
+    const at = rangeOffset(spec.dist, spec.side);
+    const built = createRangeTarget({ x: at.x, z: at.z, size: spec.size });
+    world.add(built.group);
+    return {
+      id: `range-${index}`,
+      group: built.group,
+      board: built.board,
+      hitRadius: built.hitRadius,
+      alive: true,
+      flash: 0,
+    };
+  });
+}
+
 function teardownWorld() {
   while (world.children.length) {
     world.remove(world.children[0]);
@@ -308,9 +359,13 @@ function teardownWorld() {
   terrain = null;
   player = null;
   enemies = [];
+  rangeTargets = [];
   shells = [];
   flashes = [];
   world.position.set(0, 0, 0);
+  world.rotation.y = 0;
+  sun.position.copy(SUN_BASE);
+  chaseAnchor = null;
 }
 
 function exitFromControllers(frame) {
@@ -334,6 +389,7 @@ function readSticks(frame) {
       trigger: keys.has("Space"),
       squeeze: keys.has("KeyF"),
       primary: false, // toggled via KeyV in keydown
+      stickClick: false, // toggled via KeyL in keydown
     };
   }
 
@@ -344,6 +400,7 @@ function readSticks(frame) {
   let trigger = false;
   let squeeze = false;
   let primary = false;
+  let stickClick = false;
 
   for (const source of frame.session.inputSources) {
     const pad = source.gamepad;
@@ -366,9 +423,10 @@ function readSticks(frame) {
     if (pad.buttons[TRIGGER_BUTTON]?.pressed) trigger = true;
     if (pad.buttons[SQUEEZE_BUTTON]?.pressed) squeeze = true;
     if (pad.buttons[PRIMARY_BUTTON]?.pressed) primary = true;
+    if (pad.buttons[STICK_BUTTON]?.pressed) stickClick = true;
   }
 
-  return { leftX, leftY, rightX, rightY, trigger, squeeze, primary };
+  return { leftX, leftY, rightX, rightY, trigger, squeeze, primary, stickClick };
 }
 
 function stepGame(frame, dt, now) {
@@ -381,6 +439,9 @@ function stepGame(frame, dt, now) {
     setTankViewMode(player, viewMode);
   }
   prevPrimary = input.primary;
+
+  if (input.stickClick && !prevStickClick) toggleBoreLine();
+  prevStickClick = input.stickClick;
 
   // Hull only: left stick drives the tracks. Turret aim is separate (right stick).
   const throttle = -input.leftY;
@@ -421,6 +482,8 @@ function stepGame(frame, dt, now) {
 
   for (const enemy of enemies) {
     stepEnemy(enemy, dt, now);
+    const diamond = enemy.tank.targetMarker?.getObjectByName("target-diamond");
+    if (diamond && enemy.alive) diamond.rotation.y += dt * 1.4;
   }
 
   stepShells(shells, dt);
@@ -432,14 +495,36 @@ function stepGame(frame, dt, now) {
       hitRadius: e.tank.type.hitRadius,
       alive: e.alive,
     }));
+  for (const range of rangeTargets) {
+    targets.push({
+      id: range.id,
+      position: range.group.position,
+      hitRadius: range.hitRadius,
+      alive: true,
+    });
+  }
 
   const hits = resolveHits(shells, targets);
   for (const hit of hits) {
     const enemy = enemies.find((e) => e.id === hit.targetId);
-    if (!enemy) continue;
-    flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone(), hit.shell.kind));
-    // Cannon one-shots; MG chips until dead via repeated hits (same kill for now)
-    killEnemy(enemy, now, 4.5);
+    if (enemy) {
+      flashes.push(spawnHitFlash(world, enemy.tank.root.position.clone(), hit.shell.kind));
+      // Cannon one-shots; MG chips until dead via repeated hits (same kill for now)
+      killEnemy(enemy, now, 4.5);
+      continue;
+    }
+    const range = rangeTargets.find((t) => t.id === hit.targetId);
+    if (!range) continue;
+    range.flash = 0.45;
+    flashes.push(spawnHitFlash(world, range.group.position.clone(), hit.shell.kind));
+  }
+
+  for (const range of rangeTargets) {
+    if (range.flash <= 0) continue;
+    range.flash = Math.max(0, range.flash - dt);
+    if (range.flash < 0.001) range.flash = 0;
+    const k = range.flash / 0.45;
+    range.board.material.color.setRGB(1, 1 - 0.25 * k, 1 - 0.55 * k);
   }
 
   // Ground impact for shells
@@ -467,16 +552,10 @@ function stepGame(frame, dt, now) {
 }
 
 function syncPlayerTank() {
-  const y = heightAt(playerState.x, playerState.z);
-  player.root.position.set(playerState.x, y, playerState.z);
-  player.root.rotation.y = playerState.yaw;
-
-  const ahead = 1.4;
-  const fx = playerState.x + Math.sin(playerState.yaw) * ahead;
-  const fz = playerState.z + Math.cos(playerState.yaw) * ahead;
-  const hy = heightAt(fx, fz) - y;
-  player.root.rotation.x = THREE.MathUtils.clamp(-Math.atan2(hy, ahead), -0.25, 0.25);
-
+  const { length, width } = trackContact(player.type);
+  const pose = seatOnTerrain(player.root, playerState.x, playerState.z, playerState.yaw, length, width);
+  playerState.pitch = pose.pitch;
+  playerState.roll = pose.roll;
   player.turret.rotation.y = playerState.turretYaw;
   player.barrelPivot.rotation.x = playerState.barrelPitch;
 }
@@ -487,17 +566,54 @@ function firePlayerWeapon(kind) {
   tip.getWorldPosition(tmp.muzzle);
   tip.getWorldQuaternion(tmp.quat);
   tmp.dir.set(0, 0, 1).applyQuaternion(tmp.quat);
-  // Shells are parented to `world` (translation only in VR seat mode)
+  // Shells live in `world`, which yaws around the headset in VR chase view.
   world.worldToLocal(tmp.muzzle);
   const localDir = tmp.dir.clone();
   shells.push(spawnShell(world, tmp.muzzle, localDir, "player", kind));
   flashes.push(spawnMuzzleFlash(world, tmp.muzzle.clone(), localDir, kind));
 }
 
+function cameraYaw() {
+  yawEuler.setFromQuaternion(camera.quaternion, "YXZ");
+  return yawEuler.y;
+}
+
+function applyBoreLine() {
+  if (player?.boreLine) player.boreLine.visible = boreLineOn;
+}
+
+function toggleBoreLine() {
+  boreLineOn = !boreLineOn;
+  applyBoreLine();
+}
+
 function alignWorldToSeat() {
+  if (viewMode !== "chase") {
+    world.rotation.y = 0;
+    chaseAnchor = null;
+  } else {
+    // Lock the heading from when chase view opened. Further tank yaw orbits
+    // the world around the headset so the hull stays in front of that view.
+    if (chaseAnchor == null) chaseAnchor = cameraYaw();
+    world.rotation.y = 0;
+    world.updateMatrixWorld(true);
+    player.chaseSeat.getWorldPosition(tmp.seat);
+    player.root.getWorldPosition(tmp.forward);
+    tmp.forward.sub(tmp.seat);
+    tmp.forward.y = 0;
+    if (tmp.forward.lengthSq() > 1e-6) {
+      const current = Math.atan2(tmp.forward.x, tmp.forward.z);
+      const desired = Math.atan2(-Math.sin(chaseAnchor), -Math.cos(chaseAnchor));
+      let delta = desired - current;
+      while (delta > Math.PI) delta -= Math.PI * 2;
+      while (delta < -Math.PI) delta += Math.PI * 2;
+      world.rotation.y = delta;
+    }
+  }
+  sun.position.copy(SUN_BASE).applyAxisAngle(Y_AXIS, world.rotation.y);
+
   const seat = viewMode === "cockpit" ? player.cockpitSeat : player.chaseSeat;
   seat.getWorldPosition(tmp.seat);
-  // seat world pos currently includes world.position; we want seat at camera
   const cam = camera.position;
   world.position.x += cam.x - tmp.seat.x;
   world.position.y += cam.y - tmp.seat.y;
@@ -512,6 +628,16 @@ window.__tanksDebug = () => ({
   hullYaw: playerState?.yaw ?? null,
   turretYaw: playerState?.turretYaw ?? null,
   barrelPitch: playerState?.barrelPitch ?? null,
+  x: playerState?.x ?? null,
+  z: playerState?.z ?? null,
+  pitch: playerState?.pitch ?? null,
+  roll: playerState?.roll ?? null,
+  aimSight: player?.aimSight?.visible ?? null,
+  boreLine: player?.boreLine?.visible ?? null,
+  worldYaw: world.rotation.y,
+  chaseAnchor,
+  contact: contactErrors(),
+  rangeTargets: rangeTargets.map((t) => ({ id: t.id, flash: t.flash })),
   shellCount: shells.length,
   shellKinds: shells.map((s) => s.kind),
   enemies: enemies.map((e) => ({
@@ -519,6 +645,26 @@ window.__tanksDebug = () => ({
     yaw: e.yaw,
     desiredYaw: e.desiredYaw,
     turretYaw: e.turretYaw,
+    pitch: e.pitch,
+    roll: e.roll,
     alive: e.alive,
   })),
 });
+
+function contactErrors() {
+  if (!player || !playerState) return null;
+  const { length, width } = trackContact(player.type);
+  player.root.updateWorldMatrix(true, true);
+  const pts = [
+    [-width / 2, length / 2],
+    [width / 2, length / 2],
+    [-width / 2, -length / 2],
+    [width / 2, -length / 2],
+  ];
+  return pts.map(([lx, lz]) => {
+    tmp.forward.set(lx, 0, lz);
+    player.root.localToWorld(tmp.forward);
+    const ground = heightAt(tmp.forward.x, tmp.forward.z);
+    return Number((tmp.forward.y - ground).toFixed(3));
+  });
+}
