@@ -32,6 +32,7 @@ These pages only start immersive AR on a Quest. A phone or laptop can show the s
 | [Capture](https://ironslob.github.io/webxr-experiments/experiments/7-capture/) | Bakes camera colour onto the Space Setup mesh, then drops you into the opaque capture. |
 | [Slice](https://ironslob.github.io/webxr-experiments/experiments/8-slice/) | Swing one katana or two through fruit, animals, or planets. Scores float in the air, and the best rounds stay in a high score table. |
 | [Lyrics](https://ironslob.github.io/webxr-experiments/experiments/9-lyrics/) | Words drop in on the beat. Grab one with a fist and pull it into a firework at your chest. |
+| [Tanks](https://ironslob.github.io/webxr-experiments/experiments/10-tanks/) | VR tank commander on rolling hills. Drive, aim, fire on AI tanks, and track them on a radar. |
 
 ## About the code
 
