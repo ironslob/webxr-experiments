@@ -83,6 +83,7 @@ const tmp = {
   quat: new THREE.Quaternion(),
   forward: new THREE.Vector3(),
 };
+const invParent = new THREE.Matrix4();
 
 let terrain = null;
 let player = null;
@@ -576,15 +577,23 @@ function syncPlayerTank() {
 
 function firePlayerWeapon(kind) {
   const tip = kind === "mg" ? player.mgMuzzle : player.muzzle;
+  // Shells live in `world` and move in that group's axes. The muzzle quaternion
+  // is in scene space, and in VR `world` is yawed so the view turns with the hull.
+  // Strip that yaw or the shot leaves along the room's old forward instead of the barrel.
+  aimInParent(world, tip, tmp.muzzle, tmp.dir);
+  shells.push(spawnShell(world, tmp.muzzle, tmp.dir, "player", kind));
+  flashes.push(spawnMuzzleFlash(world, tmp.muzzle.clone(), tmp.dir.clone(), kind));
+}
+
+function aimInParent(parent, tip, origin, direction) {
   tip.updateWorldMatrix(true, false);
-  tip.getWorldPosition(tmp.muzzle);
+  tip.getWorldPosition(origin);
   tip.getWorldQuaternion(tmp.quat);
-  tmp.dir.set(0, 0, 1).applyQuaternion(tmp.quat);
-  // Shells live in `world`, which yaws around the headset in VR so the view turns with the hull.
-  world.worldToLocal(tmp.muzzle);
-  const localDir = tmp.dir.clone();
-  shells.push(spawnShell(world, tmp.muzzle, localDir, "player", kind));
-  flashes.push(spawnMuzzleFlash(world, tmp.muzzle.clone(), localDir, kind));
+  direction.set(0, 0, 1).applyQuaternion(tmp.quat);
+  parent.updateWorldMatrix(true, false);
+  parent.worldToLocal(origin);
+  invParent.copy(parent.matrixWorld).invert();
+  direction.transformDirection(invParent);
 }
 
 function cameraYaw() {
