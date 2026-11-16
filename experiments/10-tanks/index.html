@@ -6,6 +6,12 @@
     <title>Tanks — WebXR Experiments</title>
     <link rel="stylesheet" href="../../styles.css" />
     <style>
+      /* The WebGL canvas is in the page from the start. Keep it hidden until
+         the session, or its sky color covers the dark page and the light type
+         cannot be read. */
+      canvas.xr-view { visibility: hidden; }
+      body.stage canvas.xr-view { visibility: visible; }
+      #setup { background: var(--bg); }
       #exit { pointer-events: auto; }
       canvas.xr-view.preview-view {
         pointer-events: auto;
@@ -26,12 +32,11 @@
       <h1>Tanks</h1>
       <p class="lede">
         Quest 3 VR tank commander. Pick a procedural tank and drive rolling
-        grassy hills — the hull sits on the slope under the tracks. In the
-        cockpit an amber sight marks where the gun is pointed, with bullseye
-        targets on the range ahead and a red diamond over each enemy tank.
-        The chase view stays behind the tank as you steer. A dotted line
-        along the cannon shows where a shot will go, and you can turn it off.
-        A radar in the corner keeps the tanks spotted.
+        grassy hills — the hull sits on the slope under the tracks. Turning
+        the hull turns your view with it, in the hatch and behind the tank.
+        An amber sight marks where the gun is pointed, and a red diamond
+        marks each enemy tank. A dotted line along the cannon shows where a
+        shot will go. A radar in the corner keeps the tanks spotted.
       </p>
       <form id="settings">
         <div class="option-list">
@@ -68,6 +73,35 @@
             </select>
           </div>
           <div class="option">
+            <label class="option-copy" for="scenery">
+              Landscape
+              <small>Normal is the usual hills. More and Dense add bushes, fallen logs, and thicker cover.</small>
+            </label>
+            <select id="scenery" name="scenery">
+              <option value="sparse">Sparse</option>
+              <option value="normal" selected>Normal</option>
+              <option value="many">More</option>
+              <option value="dense">Dense</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="radar">
+              Radar up
+              <small>Tank nose keeps the hull at the top. Headset turns the map with where you look.</small>
+            </label>
+            <select id="radar" name="radar">
+              <option value="hull" selected>Tank nose</option>
+              <option value="headset">Headset</option>
+            </select>
+          </div>
+          <div class="option">
+            <label class="option-copy" for="targets">
+              Range targets
+              <small>Bullseye boards in front of where you spawn, for practicing the cannon. Leave this off to keep the hills clear.</small>
+            </label>
+            <input id="targets" name="targets" type="checkbox" />
+          </div>
+          <div class="option">
             <label class="option-copy" for="bore">
               Cannon line
               <small>Dotted line out of the barrel. Stick click or L turns it off.</small>
@@ -92,11 +126,11 @@
           </li>
           <li class="control">
             <b>Left stick</b>
-            <span>Drive the hull only — throttle and steer. Movement follows the tracks, not the turret.</span>
+            <span>Drive and steer the hull. The view yaws with the hull, so the hills swing around you as you turn. Movement follows the tracks, not the turret.</span>
           </li>
           <li class="control">
             <b>Right stick</b>
-            <span>Traverse the turret and elevate the gun independently of the hull.</span>
+            <span>Traverse the turret and elevate the gun. Up raises the barrel, down lowers it. Aim stays independent of the hull.</span>
           </li>
           <li class="control">
             <b>Trigger</b>
@@ -108,7 +142,7 @@
           </li>
           <li class="control">
             <b>A or X</b>
-            <span>Toggle cockpit and chase view. In VR the chase camera yaws with the hull, so the tank stays in front of you.</span>
+            <span>Toggle cockpit and chase view. Both stay locked to the hull, so turning the tank turns the view.</span>
           </li>
           <li class="control">
             <b>Stick click or L</b>
@@ -120,7 +154,7 @@
           </li>
           <li class="control">
             <b>Radar</b>
-            <span>Corner map, heading-up: you are the wedge, enemies are red blips.</span>
+            <span>Corner map. You are the wedge, enemies are red blips. Tank nose keeps the hull's forward at the top. Headset keeps the direction you are looking at the top.</span>
           </li>
           <li class="control">
             <b>B or Y</b>

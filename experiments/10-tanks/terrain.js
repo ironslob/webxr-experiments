@@ -20,7 +20,20 @@ export function heightAt(x, z) {
   return noise2(x, z) * 4.8 + noise2(x * 2.1, z * 2.1) * 1.4 + bowl;
 }
 
-export function createTerrain() {
+/** Prop counts. Normal matches the original hills. More and Dense add cover. */
+export const SCENERY = {
+  sparse: { trees: 28, rocks: 18, bushes: 0, logs: 0, grass: 70 },
+  normal: { trees: 70, rocks: 55, bushes: 0, logs: 0, grass: 180 },
+  many: { trees: 150, rocks: 110, bushes: 80, logs: 28, grass: 400 },
+  dense: { trees: 260, rocks: 190, bushes: 150, logs: 48, grass: 700 },
+};
+
+export function resolveScenery(level) {
+  return SCENERY[level] ? level : "normal";
+}
+
+export function createTerrain(level = "normal") {
+  const counts = SCENERY[resolveScenery(level)];
   const segments = 140;
   const geo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, segments, segments);
   geo.rotateX(-Math.PI / 2);
@@ -61,14 +74,47 @@ export function createTerrain() {
 
   const group = new THREE.Group();
   group.add(mesh);
-  scatterProps(group);
+  group.userData.props = scatterProps(group, counts);
   return group;
 }
 
-function scatterProps(group) {
+const _dummy = new THREE.Object3D();
+
+function collectPoints(count, minRadius, spread) {
+  const pts = [];
+  let guard = 0;
+  const limit = Math.max(count * 8, count);
+  while (pts.length < count && guard < limit) {
+    guard += 1;
+    const x = (Math.random() - 0.5) * MAP_SIZE * spread;
+    const z = (Math.random() - 0.5) * MAP_SIZE * spread;
+    if (Math.hypot(x, z) < minRadius) continue;
+    pts.push({ x, z, y: heightAt(x, z) });
+  }
+  return pts;
+}
+
+function addInstances(group, geo, mat, pts, place, { shadow = true } = {}) {
+  if (!pts.length) return;
+  const mesh = new THREE.InstancedMesh(geo, mat, pts.length);
+  mesh.castShadow = shadow;
+  mesh.receiveShadow = shadow;
+  for (let i = 0; i < pts.length; i += 1) {
+    place(_dummy, pts[i], i);
+    _dummy.updateMatrix();
+    mesh.setMatrixAt(i, _dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.computeBoundingSphere();
+  group.add(mesh);
+}
+
+function scatterProps(group, counts) {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x4a3424, roughness: 0.9 });
   const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f5a28, roughness: 0.85 });
   const rockMat = new THREE.MeshStandardMaterial({ color: 0x6a6e64, roughness: 0.92 });
+  const bushMat = new THREE.MeshStandardMaterial({ color: 0x3d6b30, roughness: 0.9 });
+  const logMat = new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.92 });
   const grassMat = new THREE.MeshStandardMaterial({
     color: 0x3f7a32,
     roughness: 1,
@@ -78,52 +124,65 @@ function scatterProps(group) {
   const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 1.4, 6);
   const leafGeo = new THREE.ConeGeometry(1.1, 2.4, 7);
   const rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
+  const bushGeo = new THREE.IcosahedronGeometry(0.7, 0);
+  const logGeo = new THREE.CylinderGeometry(0.16, 0.2, 2.4, 6);
   const grassGeo = new THREE.PlaneGeometry(0.35, 0.55);
 
-  for (let i = 0; i < 70; i += 1) {
-    const x = (Math.random() - 0.5) * MAP_SIZE * 0.88;
-    const z = (Math.random() - 0.5) * MAP_SIZE * 0.88;
-    if (Math.hypot(x, z) < 12) continue;
-    const y = heightAt(x, z);
+  const trees = collectPoints(counts.trees, 12, 0.88);
+  const treeSpin = trees.map(() => Math.random() * Math.PI * 2);
+  const treeScale = trees.map(() => 0.75 + Math.random() * 0.7);
+  addInstances(group, trunkGeo, trunkMat, trees, (dummy, p, i) => {
+    const s = treeScale[i];
+    dummy.position.set(p.x, p.y + 0.7 * s, p.z);
+    dummy.rotation.set(0, treeSpin[i], 0);
+    dummy.scale.setScalar(s);
+  });
+  addInstances(group, leafGeo, leafMat, trees, (dummy, p, i) => {
+    const s = treeScale[i];
+    dummy.position.set(p.x, p.y + 2.2 * s, p.z);
+    dummy.rotation.set(0, treeSpin[i], 0);
+    dummy.scale.setScalar(s);
+  });
 
-    const tree = new THREE.Group();
-    const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-    trunk.position.y = 0.7;
-    trunk.castShadow = true;
-    const leaves = new THREE.Mesh(leafGeo, leafMat);
-    leaves.position.y = 2.2;
-    leaves.castShadow = true;
-    tree.add(trunk, leaves);
-    tree.position.set(x, y, z);
-    tree.rotation.y = Math.random() * Math.PI * 2;
-    const s = 0.75 + Math.random() * 0.7;
-    tree.scale.setScalar(s);
-    group.add(tree);
-  }
-
-  for (let i = 0; i < 55; i += 1) {
-    const x = (Math.random() - 0.5) * MAP_SIZE * 0.9;
-    const z = (Math.random() - 0.5) * MAP_SIZE * 0.9;
-    if (Math.hypot(x, z) < 8) continue;
-    const rock = new THREE.Mesh(rockGeo, rockMat);
+  const rocks = collectPoints(counts.rocks, 8, 0.9);
+  addInstances(group, rockGeo, rockMat, rocks, (dummy, p) => {
     const s = 0.4 + Math.random() * 1.4;
-    rock.scale.set(s, s * (0.5 + Math.random() * 0.6), s);
-    rock.position.set(x, heightAt(x, z) + 0.15 * s, z);
-    rock.rotation.set(Math.random(), Math.random() * Math.PI, Math.random());
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    group.add(rock);
-  }
+    const squash = 0.5 + Math.random() * 0.6;
+    dummy.position.set(p.x, p.y + 0.15 * s, p.z);
+    dummy.rotation.set(Math.random(), Math.random() * Math.PI, Math.random());
+    dummy.scale.set(s, s * squash, s);
+  });
 
-  for (let i = 0; i < 180; i += 1) {
-    const x = (Math.random() - 0.5) * MAP_SIZE * 0.85;
-    const z = (Math.random() - 0.5) * MAP_SIZE * 0.85;
-    const blade = new THREE.Mesh(grassGeo, grassMat);
-    blade.position.set(x, heightAt(x, z) + 0.25, z);
-    blade.rotation.y = Math.random() * Math.PI;
-    blade.rotation.z = (Math.random() - 0.5) * 0.3;
-    group.add(blade);
-  }
+  const bushes = collectPoints(counts.bushes, 10, 0.86);
+  addInstances(group, bushGeo, bushMat, bushes, (dummy, p) => {
+    const s = 0.6 + Math.random() * 1.1;
+    dummy.position.set(p.x, p.y + 0.4 * s, p.z);
+    dummy.rotation.set(Math.random(), Math.random() * Math.PI, Math.random());
+    dummy.scale.set(s, s * 0.62, s);
+  }, { shadow: false });
+
+  const logs = collectPoints(counts.logs, 10, 0.86);
+  addInstances(group, logGeo, logMat, logs, (dummy, p) => {
+    const s = 0.7 + Math.random() * 0.8;
+    dummy.position.set(p.x, p.y + 0.18 * s, p.z);
+    dummy.rotation.set(0, Math.random() * Math.PI, Math.PI / 2);
+    dummy.scale.set(1, s, 1);
+  });
+
+  const grass = collectPoints(counts.grass, 0, 0.85);
+  addInstances(group, grassGeo, grassMat, grass, (dummy, p) => {
+    dummy.position.set(p.x, p.y + 0.25, p.z);
+    dummy.rotation.set(0, Math.random() * Math.PI, (Math.random() - 0.5) * 0.3);
+    dummy.scale.set(1, 1, 1);
+  }, { shadow: false });
+
+  return {
+    trees: trees.length,
+    rocks: rocks.length,
+    bushes: bushes.length,
+    logs: logs.length,
+    grass: grass.length,
+  };
 }
 
 export function clampToMap(x, z, margin = 8) {
