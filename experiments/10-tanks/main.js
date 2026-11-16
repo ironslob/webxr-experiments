@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { createRangeTarget, createTank, setTankViewMode, TANK_TYPES, trackContact } from "./tanks.js";
 import { createTerrain, heightAt, clampToMap, randomMapPoint, resolveScenery, seatOnTerrain } from "./terrain.js";
-import { radarMapHeading, worldYawForView } from "./view.js";
+import { placeWorldOnHead, radarMapHeading, worldYawForView } from "./view.js";
 import {
   spawnShell,
   stepShells,
@@ -99,8 +99,8 @@ let boreLineOn = true;
 let sceneryLevel = "normal";
 let radarMode = "hull";
 let rangeTargetsOn = false;
-// Headset yaw (Three.js camera yaw) captured on the first pose. Hull steering
-// yaws the world against this so the view turns with the tank body.
+// First viewer pose (position and yaw). The seat stays on this point and the
+// world yaws around it. Later headset motion is the XR camera, not a world slide.
 let viewAnchor = null;
 let ending = false;
 let cannonCooldown = 0;
@@ -148,9 +148,12 @@ exit.addEventListener("click", () => {
 
 renderer.xr.addEventListener("sessionstart", () => {
   beginSession("Commander online");
+  // Recenter rebuilds the reference origin. Recapture so the hatch meets the headset again.
+  renderer.xr.getReferenceSpace()?.addEventListener("reset", onReferenceReset);
 });
 
 renderer.xr.addEventListener("sessionend", () => {
+  renderer.xr.getReferenceSpace()?.removeEventListener("reset", onReferenceReset);
   endSession();
 });
 
@@ -601,14 +604,26 @@ function cameraYaw() {
   return yawEuler.y;
 }
 
-function viewerYaw(frame) {
+function onReferenceReset() {
+  viewAnchor = null;
+}
+
+function readViewerPose(frame) {
   const space = renderer.xr.getReferenceSpace?.();
   const pose = space && frame?.getViewerPose?.(space);
-  const o = pose?.transform?.orientation;
-  if (!o) return null;
-  tmp.quat.set(o.x, o.y, o.z, o.w);
+  const orientation = pose?.transform?.orientation;
+  const position = pose?.transform?.position;
+  if (!orientation || !position) return null;
+  tmp.quat.set(orientation.x, orientation.y, orientation.z, orientation.w);
   yawEuler.setFromQuaternion(tmp.quat, "YXZ");
-  return yawEuler.y;
+  if (!Number.isFinite(position.x) || !Number.isFinite(position.y) || !Number.isFinite(position.z)) {
+    return null;
+  }
+  return { x: position.x, y: position.y, z: position.z, yaw: yawEuler.y };
+}
+
+function viewerYaw(frame) {
+  return readViewerPose(frame)?.yaw ?? null;
 }
 
 function applyBoreLine() {
@@ -621,22 +636,28 @@ function toggleBoreLine() {
 }
 
 function alignWorldToSeat(frame) {
-  const headYaw = viewerYaw(frame);
-  if (headYaw == null) return;
-  if (viewAnchor == null) viewAnchor = headYaw;
-  // Copy this frame's pose onto the scene camera before seating the world on it.
-  // The renderer's own update happens after this callback.
-  renderer.xr.updateCamera(camera);
+  const head = readViewerPose(frame);
+  if (!head) return;
+  if (viewAnchor == null) viewAnchor = head;
 
-  world.rotation.y = worldYawForView(viewAnchor, playerState.yaw);
-  sun.position.copy(SUN_BASE).applyAxisAngle(Y_AXIS, world.rotation.y);
-
+  // Seat point in the world group's own axes, before this group's yaw and slide.
+  // Do not read camera.position and do not call renderer.xr.updateCamera here.
+  // That call writes the left eye through the camera parent, and sliding the
+  // world onto it every frame locks the hatch to the skull instead of leaving
+  // the XR camera on the headset.
   const seat = viewMode === "cockpit" ? player.cockpitSeat : player.chaseSeat;
+  world.updateMatrixWorld(true);
   seat.getWorldPosition(tmp.seat);
-  const cam = camera.position;
-  world.position.x += cam.x - tmp.seat.x;
-  world.position.y += cam.y - tmp.seat.y;
-  world.position.z += cam.z - tmp.seat.z;
+  world.worldToLocal(tmp.seat);
+
+  const placed = placeWorldOnHead(
+    worldYawForView(viewAnchor.yaw, playerState.yaw),
+    tmp.seat,
+    viewAnchor,
+  );
+  world.rotation.y = placed.yaw;
+  world.position.set(placed.x, placed.y, placed.z);
+  sun.position.copy(SUN_BASE).applyAxisAngle(Y_AXIS, placed.yaw);
 }
 
 // Desktop/dev introspection for automated checks
@@ -655,7 +676,7 @@ window.__tanksDebug = () => ({
   boreLine: player?.boreLine?.visible ?? null,
   worldYaw: world.rotation.y,
   lookYaw: cameraYaw(),
-  viewAnchor,
+  viewAnchor: viewAnchor?.yaw ?? null,
   radarMode,
   sceneryLevel,
   props: terrain?.userData?.props ?? null,
