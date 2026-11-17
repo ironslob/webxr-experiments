@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { MAP_SIZE } from "./terrain.js";
+import { radarBlipOffset } from "./view.js";
 
 const SIZE = 256;
 
@@ -61,18 +62,11 @@ export function drawRadar(radar, player, enemies) {
     ctx.stroke();
   }
 
-  // Player heading-up: rotate world so player yaw points up
-  const cos = Math.cos(-player.yaw);
-  const sin = Math.sin(-player.yaw);
-
   for (const e of enemies) {
     if (!e.alive) continue;
-    const dx = e.x - player.x;
-    const dz = e.z - player.z;
-    const rx = dx * cos - dz * sin;
-    const rz = dx * sin + dz * cos;
-    const px = cx + rx * scale;
-    const py = cy - rz * scale;
+    const { right, forward } = radarBlipOffset(e.x - player.x, e.z - player.z, player.yaw);
+    const px = cx + right * scale;
+    const py = cy - forward * scale;
     if (Math.hypot(px - cx, py - cy) > SIZE * 0.44) continue;
     ctx.fillStyle = "#ff5d73";
     ctx.beginPath();

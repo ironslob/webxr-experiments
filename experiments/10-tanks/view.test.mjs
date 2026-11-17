@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { placeWorldOnHead, radarMapHeading, worldYawForView } from "./view.js";
+import { placeWorldOnHead, radarBlipOffset, radarMapHeading, worldYawForView } from "./view.js";
 
 function scenePoint(placed, seat) {
   const cos = Math.cos(placed.yaw);
@@ -30,6 +30,35 @@ assert.ok(Math.abs(look - (Math.PI + 0.5)) < 1e-10);
 // Hull mode ignores where the headset is pointing.
 assert.equal(radarMapHeading("hull", 1.2, 0.4, -0.3), 1.2);
 assert.equal(radarMapHeading("headset", 1.2, null, 0), 1.2);
+
+// Heading-up blips: yaw 0 faces +Z, local +X is right.
+{
+  const ahead = radarBlipOffset(0, 10, 0);
+  assert.ok(Math.abs(ahead.right) < 1e-10);
+  assert.ok(Math.abs(ahead.forward - 10) < 1e-10);
+  const right = radarBlipOffset(10, 0, 0);
+  assert.ok(Math.abs(right.right - 10) < 1e-10);
+  assert.ok(Math.abs(right.forward) < 1e-10);
+}
+
+// Facing +X: world +X is ahead, world −Z is right. (−yaw would put ahead below.)
+{
+  const ahead = radarBlipOffset(10, 0, Math.PI / 2);
+  assert.ok(Math.abs(ahead.right) < 1e-10);
+  assert.ok(Math.abs(ahead.forward - 10) < 1e-10);
+  const right = radarBlipOffset(0, -10, Math.PI / 2);
+  assert.ok(Math.abs(right.right - 10) < 1e-10);
+  assert.ok(Math.abs(right.forward) < 1e-10);
+}
+
+// A world point on the nose stays on the nose after a steer; a fixed +Z contact swings left.
+{
+  const yaw = 0.4;
+  const nose = radarBlipOffset(Math.sin(yaw) * 8, Math.cos(yaw) * 8, yaw);
+  assert.ok(Math.abs(nose.right) < 1e-10);
+  assert.ok(Math.abs(nose.forward - 8) < 1e-10);
+  assert.ok(radarBlipOffset(0, 8, yaw).right < 0);
+}
 
 // The seat stays on the captured head for the spawn yaw and after a steer.
 // A later head position is not part of the placement, so a lean does not drag the tank.
