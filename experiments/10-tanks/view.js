@@ -38,3 +38,18 @@ export function radarMapHeading(mode, hullYaw, cameraYaw, worldYaw) {
   if (mode !== "headset" || cameraYaw == null || !Number.isFinite(cameraYaw)) return hullYaw;
   return cameraYaw + Math.PI - worldYaw;
 }
+
+/**
+ * Map-space offset into heading-up radar axes.
+ * Hull yaw 0 faces +Z and local +X is right (same as seatOnTerrain / drive).
+ * Rotate by +yaw so the nose stays up: rotating by −yaw mirrored left/right.
+ * `forward` is nose-up on the canvas; `right` is screen-right.
+ */
+export function radarBlipOffset(dx, dz, yaw) {
+  const cos = Math.cos(yaw);
+  const sin = Math.sin(yaw);
+  return {
+    right: dx * cos - dz * sin,
+    forward: dx * sin + dz * cos,
+  };
+}
